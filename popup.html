@@ -4,435 +4,307 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Local TCP</title>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
   <style>
-    /* ── CSS Variables ─────────────────────────────────── */
     :root {
-      --bg: #0d0d0f;
-      --surface: #18181c;
-      --surface2: #1f1f25;
-      --border: #2a2a35;
-      --accent: #00e5a0;
-      --accent-dim: #00e5a015;
-      --accent-glow: #00e5a030;
-      --text: #f0f0f5;
-      --text-muted: #6b6b80;
-      --text-sub: #9090a8;
-      --error: #ff5370;
-      --warning: #ffb347;
-      --success: #00e5a0;
-      --radius: 10px;
-      --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    [data-theme="light"] {
-      --bg: #f4f4f8;
-      --surface: #ffffff;
-      --surface2: #ebebf2;
-      --border: #d8d8e8;
-      --accent: #007a55;
-      --accent-dim: #007a5510;
-      --accent-glow: #007a5520;
-      --text: #0d0d1a;
-      --text-muted: #9090a8;
-      --text-sub: #5a5a72;
-      --error: #d63031;
-      --warning: #e17055;
-      --success: #007a55;
+      --primary: #5dc095;
+      --primary-dim: rgba(93, 192, 149, 0.1);
+      --primary-glow: rgba(93, 192, 149, 0.25);
+      --bg: #0b0b0d;
+      --surface: #141417;
+      --surface-bright: #1c1c21;
+      --border: #26262b;
+      --text: #ffffff;
+      --text-dim: #94949e;
+      --error: #ff5858;
+      --success: #5dc095;
+      --radius: 12px;
+      --font-main: 'Inter', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      width: 320px;
-      min-height: 420px;
+      width: 340px;
+      min-height: 460px;
       background: var(--bg);
       color: var(--text);
-      font-family: 'Syne', sans-serif;
-      transition: background var(--transition), color var(--transition);
-      overflow: hidden;
+      font-family: var(--font-main);
+      overflow-x: hidden;
     }
 
     /* ── Header ────────────────────────────────────────── */
     .header {
-      padding: 18px 18px 14px;
+      padding: 24px 20px 20px;
+      background: linear-gradient(180deg, var(--surface) 0%, var(--bg) 100%);
       border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      background: var(--surface);
       position: relative;
-    }
-
-    .header::after {
-      content: '';
-      position: absolute;
-      bottom: 0; left: 0; right: 0;
-      height: 1px;
-      background: linear-gradient(90deg, transparent, var(--accent), transparent);
-      opacity: 0.4;
     }
 
     .brand {
       display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .logo-row {
+      display: flex;
       align-items: center;
-      gap: 10px;
-    }
-
-    .logo {
-      width: 32px; height: 32px;
-      background: var(--accent);
-      border-radius: 8px;
-      display: flex; align-items: center; justify-content: center;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .logo::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(135deg, rgba(255,255,255,0.2), transparent);
-    }
-
-    .logo svg { width: 18px; height: 18px; color: #0d0d0f; position: relative; z-index: 1; }
-
-    .brand-text { display: flex; flex-direction: column; line-height: 1; }
-    .brand-name {
-      font-size: 15px;
-      font-weight: 800;
-      color: var(--text);
-      letter-spacing: -0.3px;
-    }
-    .brand-tag {
-      font-size: 9px;
-      font-weight: 400;
-      color: var(--text-muted);
-      font-family: 'JetBrains Mono', monospace;
-      margin-top: 2px;
-    }
-
-    /* ── Theme Toggle ──────────────────────────────────── */
-    .theme-toggle {
-      position: relative;
-      width: 44px; height: 24px;
-      cursor: pointer;
-    }
-
-    .theme-toggle input { display: none; }
-
-    .toggle-track {
-      width: 100%; height: 100%;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      transition: all var(--transition);
-      display: flex; align-items: center;
-      padding: 0 3px;
-      position: relative;
-    }
-
-    .toggle-thumb {
-      width: 18px; height: 18px;
-      background: var(--accent);
-      border-radius: 50%;
-      transition: transform var(--transition), background var(--transition);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 9px;
-    }
-
-    .theme-toggle input:checked ~ .toggle-track .toggle-thumb {
-      transform: translateX(20px);
-    }
-
-    /* ── Status Bar ────────────────────────────────────── */
-    .status-bar {
-      margin: 14px 14px 0;
-      padding: 10px 12px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      display: flex; align-items: center; gap: 8px;
-      transition: all var(--transition);
-    }
-
-    .status-dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      background: var(--text-muted);
-      flex-shrink: 0;
-      transition: background var(--transition);
-    }
-
-    .status-dot.active {
-      background: var(--success);
-      box-shadow: 0 0 8px var(--accent-glow);
-      animation: pulse 2s infinite;
-    }
-
-    .status-dot.error { background: var(--error); }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
-    }
-
-    .status-text {
-      font-size: 11px;
-      font-family: 'JetBrains Mono', monospace;
-      color: var(--text-sub);
-      flex: 1;
-    }
-
-    /* ── Body ──────────────────────────────────────────── */
-    .body { padding: 14px; }
-
-    .section-label {
-      font-size: 10px;
-      font-weight: 600;
-      color: var(--text-muted);
-      letter-spacing: 1.2px;
-      text-transform: uppercase;
-      margin-bottom: 8px;
-      font-family: 'JetBrains Mono', monospace;
-    }
-
-    /* ── Input Group ───────────────────────────────────── */
-    .input-row {
-      display: flex; gap: 8px;
-      margin-bottom: 10px;
-    }
-
-    .input-wrap {
-      flex: 1;
-      position: relative;
-    }
-
-    .input-wrap.port { flex: 0 0 80px; }
-
-    .input-label {
-      font-size: 9px;
-      font-family: 'JetBrains Mono', monospace;
-      color: var(--text-muted);
-      letter-spacing: 0.8px;
-      text-transform: uppercase;
+      gap: 12px;
       margin-bottom: 4px;
     }
 
-    input[type="text"], input[type="number"] {
-      width: 100%;
-      padding: 9px 11px;
+    .logo-box {
+      width: 36px;
+      height: 36px;
+      background: var(--primary);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 20px var(--primary-glow);
+    }
+
+    .logo-box svg {
+      width: 22px;
+      height: 22px;
+      color: #000;
+      stroke-width: 2.5;
+    }
+
+    .title {
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+    }
+
+    .tagline {
+      font-size: 11px;
+      color: var(--text-dim);
+      font-weight: 500;
+      line-height: 1.4;
+    }
+
+    /* ── Content ───────────────────────────────────────── */
+    .content { padding: 20px; }
+
+    .section-title {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-dim);
+      margin-bottom: 12px;
+      font-weight: 700;
+    }
+
+    /* ── Input Field ───────────────────────────────────── */
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .field label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-dim);
+    }
+
+    .input-container {
+      position: relative;
+      display: flex;
+      gap: 8px;
+    }
+
+    input {
+      flex: 1;
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 8px;
+      padding: 12px 14px;
+      border-radius: 10px;
       color: var(--text);
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 12px;
+      font-family: var(--font-mono);
+      font-size: 13px;
       outline: none;
-      transition: all var(--transition);
+      transition: all 0.2s ease;
     }
 
     input:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px var(--accent-dim);
+      border-color: var(--primary);
+      background: var(--surface-bright);
+      box-shadow: 0 0 0 4px var(--primary-dim);
     }
 
-    input::placeholder { color: var(--text-muted); }
+    .port-input { width: 90px; flex: none; }
 
     /* ── Buttons ───────────────────────────────────────── */
-    .btn-row {
-      display: flex; gap: 8px;
-      margin-top: 12px;
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 8px;
     }
 
-    .btn {
-      flex: 1;
-      padding: 10px;
-      border: none;
-      border-radius: 8px;
-      font-family: 'Syne', sans-serif;
-      font-size: 12px;
+    button {
+      padding: 12px;
+      border-radius: 10px;
+      font-size: 13px;
       font-weight: 700;
       cursor: pointer;
-      transition: all var(--transition);
-      letter-spacing: 0.3px;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      border: 1px solid transparent;
+      outline: none;
     }
 
     .btn-primary {
-      background: var(--accent);
-      color: #0d0d0f;
+      background: var(--primary);
+      color: #000;
     }
 
     .btn-primary:hover {
-      filter: brightness(1.1);
-      transform: translateY(-1px);
-      box-shadow: 0 4px 16px var(--accent-glow);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px var(--primary-glow);
+      filter: brightness(1.05);
     }
 
-    .btn-primary:active { transform: translateY(0); }
-
     .btn-secondary {
-      background: var(--surface);
-      color: var(--text-sub);
-      border: 1px solid var(--border);
+      background: transparent;
+      border-color: var(--border);
+      color: var(--text);
     }
 
     .btn-secondary:hover {
-      border-color: var(--accent);
-      color: var(--accent);
+      background: var(--surface);
+      border-color: var(--primary);
+      color: var(--primary);
     }
 
-    .btn:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-      transform: none !important;
-    }
+    button:active { transform: translateY(0); }
 
-    /* ── Connection Log ────────────────────────────────── */
-    .log-section {
-      margin-top: 14px;
+    /* ── Activity Log ──────────────────────────────────── */
+    .log-container {
+      margin-top: 28px;
     }
 
     .log-box {
-      background: var(--surface);
+      background: #000;
       border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 10px;
-      height: 80px;
+      border-radius: 12px;
+      padding: 12px;
+      height: 100px;
       overflow-y: auto;
-      font-family: 'JetBrains Mono', monospace;
+      font-family: var(--font-mono);
       font-size: 10px;
-      color: var(--text-sub);
       line-height: 1.6;
+      color: var(--text-dim);
     }
 
-    .log-box::-webkit-scrollbar { width: 3px; }
-    .log-box::-webkit-scrollbar-track { background: transparent; }
-    .log-box::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-
-    .log-entry { display: flex; gap: 6px; }
-    .log-time { color: var(--text-muted); flex-shrink: 0; }
+    .log-entry { margin-bottom: 4px; display: flex; gap: 8px; }
+    .log-time { color: #555; flex-shrink: 0; }
+    .log-msg { word-break: break-all; }
     .log-msg.success { color: var(--success); }
     .log-msg.error { color: var(--error); }
-    .log-msg.info { color: var(--text-sub); }
 
-    /* ── Divider ───────────────────────────────────────── */
-    .divider {
-      height: 1px;
-      background: var(--border);
-      margin: 14px 0;
-    }
-
-    /* ── Footer ────────────────────────────────────────── */
-    .footer {
-      padding: 10px 14px;
-      border-top: 1px solid var(--border);
+    /* ── Status indicator ──────────────────────────────── */
+    .status-badge {
+      position: absolute;
+      top: 24px;
+      right: 20px;
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      gap: 6px;
+      background: var(--surface);
+      padding: 4px 10px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
     }
 
-    .footer-version {
-      font-size: 9px;
-      font-family: 'JetBrains Mono', monospace;
-      color: var(--text-muted);
+    .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #444;
     }
 
-    .footer-link {
-      font-size: 9px;
-      color: var(--accent);
-      text-decoration: none;
-      font-family: 'JetBrains Mono', monospace;
-      opacity: 0.7;
-      transition: opacity var(--transition);
+    .dot.active {
+      background: var(--success);
+      box-shadow: 0 0 8px var(--success);
+      animation: pulse 2s infinite;
     }
 
-    .footer-link:hover { opacity: 1; }
-
-    /* ── Animations ────────────────────────────────────── */
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(4px); }
-      to   { opacity: 1; transform: translateY(0); }
+    .status-text {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
 
-    .body, .header { animation: fadeIn 0.25s ease both; }
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.4; }
+      100% { opacity: 1; }
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
   </style>
 </head>
-<body data-theme="dark">
-
-  <!-- Header -->
+<body>
   <div class="header">
-    <div class="brand">
-      <div class="logo">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M5 12h14M12 5l7 7-7 7"/>
-        </svg>
-      </div>
-      <div class="brand-text">
-        <span class="brand-name">Local TCP</span>
-        <span class="brand-tag">tcp bridge v1.0.0</span>
-      </div>
+    <div class="status-badge">
+      <div class="dot active"></div>
+      <span class="status-text">Active</span>
     </div>
-
-    <!-- Theme Toggle -->
-    <label class="theme-toggle" title="Toggle theme">
-      <input type="checkbox" id="themeToggle" />
-      <div class="toggle-track">
-        <div class="toggle-thumb" id="toggleIcon">🌙</div>
+    <div class="brand">
+      <div class="logo-row">
+        <div class="logo-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 12h14M12 5l7 7-7 7"/>
+          </svg>
+        </div>
+        <span class="title">Local TCP</span>
       </div>
-    </label>
+      <p class="tagline">Your browser can finally talk with local TCP.</p>
+    </div>
   </div>
 
-  <!-- Body -->
-  <div class="body">
-
-    <!-- Status -->
-    <div class="status-bar" id="statusBar">
-      <div class="status-dot" id="statusDot"></div>
-      <span class="status-text" id="statusText">Ready — enter host and port to connect</span>
-    </div>
-
-    <!-- Inputs -->
-    <div style="margin-top: 14px;">
-      <div class="section-label">Connection</div>
-      <div class="input-row">
-        <div class="input-wrap">
-          <div class="input-label">Host / IP</div>
-          <input type="text" id="hostInput" placeholder="192.168.10.199" />
-        </div>
-        <div class="input-wrap port">
-          <div class="input-label">Port</div>
-          <input type="number" id="portInput" placeholder="9100" min="1" max="65535" />
+  <div class="content">
+    <div class="section-title">Configuration</div>
+    <div class="field-group">
+      <div class="field">
+        <label>Network Address</label>
+        <div class="input-container">
+          <input type="text" id="hostInput" placeholder="192.168.1.100" />
+          <input type="number" id="portInput" class="port-input" placeholder="9100" />
         </div>
       </div>
     </div>
 
-    <!-- Buttons -->
-    <div class="btn-row">
-      <button class="btn btn-primary" id="testBtn">Test Connection</button>
-      <button class="btn btn-secondary" id="saveBtn">Save</button>
+    <div class="actions">
+      <button class="btn-primary" id="saveBtn">Save Config</button>
+      <button class="btn-secondary" id="testBtn">Test Connection</button>
     </div>
 
-    <!-- Divider -->
-    <div class="divider"></div>
-
-    <!-- Log -->
-    <div class="log-section">
-      <div class="section-label">Activity Log</div>
+    <div class="log-container">
+      <div class="section-title">Activity Monitor</div>
       <div class="log-box" id="logBox">
         <div class="log-entry">
-          <span class="log-time">--:--:--</span>
-          <span class="log-msg info">Local TCP ready. Waiting for connections...</span>
+          <span class="log-time">System</span>
+          <span class="log-msg">Bridge initialized and ready.</span>
         </div>
       </div>
     </div>
-
-  </div>
-
-  <!-- Footer -->
-  <div class="footer">
-    <span class="footer-version">Local TCP © 2025</span>
-    <a href="#" class="footer-link">docs →</a>
   </div>
 
   <script src="popup.js"></script>
