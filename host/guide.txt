@@ -1,0 +1,24 @@
+Algonize Local TCP Bridge - Setup Guide
+-----------------------------------------
+
+Thank you for choosing Algonize! Follow these steps to connect your hardware:
+
+1. Locate the setup file for your computer:
+   - Mac: install_setup_mac.command
+   - Windows: install_setup_windows.bat
+   - Linux: install_setup_linux.sh
+
+2. RUN THE INSTALLER:
+   - Mac: Right-click the file and select 'Open'.
+   - Windows: Double-click (Run as Administrator if needed).
+
+3. RESTART CHROME:
+   - Close all Chrome windows and reopen it. This is required for the bridge to activate.
+
+4. CHECK STATUS:
+   - Open the Local TCP extension icon in your browser toolbar.
+   - It should now say "Bridge Linked" in green.
+
+NEED HELP?
+Contact us at support@algonize.io
+-----------------------------------------

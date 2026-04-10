@@ -121,29 +121,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     addLog(`System: ${os.toUpperCase()}`, 'success');
 
-    // 2. Define files based on OS
-    const GITHUB_RAW = 'https://raw.githubusercontent.com/algonize/local_tcp/main/host/';
-    const commonFiles = ['index.js', 'com.algonize.localtcp.json'];
-    const osFiles = {
-      mac: ['install_setup_mac.command', 'uninstall_setup_mac.command'],
-      win: ['install_setup_windows.bat', 'uninstall_setup_windows.bat'],
-      linux: ['install_setup_linux.sh', 'uninstall_setup_linux.sh']
+    // 2. Define ZIP filename based on OS
+    const GITHUB_RAW = 'https://raw.githubusercontent.com/algonize/local_tcp/main/';
+    const zipFiles = {
+      mac: 'bridge_mac.zip',
+      win: 'bridge_win.zip',
+      linux: 'bridge_linux.zip'
     };
 
-    const filesToDownload = [...commonFiles, ...osFiles[os]];
+    const targetZip = zipFiles[os];
 
-    // 3. Trigger Downloads
-    addLog('Downloading setup kit...', 'info');
-    filesToDownload.forEach(file => {
+    // 3. Trigger Download
+    addLog(`Fetching ${targetZip}...`, 'info');
+    
+    try {
       chrome.downloads.download({
-        url: GITHUB_RAW + file,
-        filename: `algonize_bridge/${file}`,
+        url: GITHUB_RAW + targetZip,
+        filename: targetZip,
         saveAs: false
       });
-    });
-
-    addLog('Success: Check your Downloads folder.', 'success');
-    alert('Bridge Downloaded!\n\nPlease open your Downloads folder, go into "algonize_bridge", and run the install script.');
+      addLog('Success: Download started.', 'success');
+      alert('Download Started!\n\nPlease unzip the file and run the installer inside.');
+    } catch (err) {
+      addLog(`Download failed: ${err.message}`, 'error');
+    }
   });
 
   clearLogsBtn.addEventListener('click', () => {
