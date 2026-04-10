@@ -124,11 +124,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 2. Define Files to fetch (from root /host folder on GitHub)
     const GITHUB_RAW = 'https://raw.githubusercontent.com/algonize/local_tcp/main/host/';
-    const commonFiles = ['index.js', 'com.algonize.localtcp.json', 'guide.txt'];
+    const commonFiles = ['index.js', 'com.algoramming.localtcp.json'];
     const osFiles = {
-      mac: ['install_setup_mac.command', 'uninstall_setup_mac.command'],
-      win: ['install_setup_windows.bat', 'uninstall_setup_windows.bat'],
-      linux: ['install_setup_linux.sh', 'uninstall_setup_linux.sh']
+      mac: ['install_setup_mac.pkg', 'uninstall_setup_mac.pkg', 'guide_mac.txt'],
+      win: ['install_setup_windows.ps1', 'uninstall_setup_windows.ps1', 'guide_windows.txt'],
+      linux: ['install_setup_linux.sh', 'uninstall_setup_linux.sh', 'guide_linux.txt']
     };
 
     const filesToFetch = [...commonFiles, ...osFiles[os]];
@@ -160,8 +160,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
 
       addLog('Success: ZIP delivered.', 'success');
-      alert(`Success!\n\nCheck your Downloads folder for "localtcp_bridge_${os}.zip".\n\nUnzip it and follow the instructions in guide.txt.`);
-
     } catch (err) {
       addLog(`Build failed: ${err.message}`, 'error');
       alert('Error fetching files from GitHub. Please check your internet connection and ensure the files are public.');

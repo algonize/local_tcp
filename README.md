@@ -16,20 +16,19 @@ Local TCP is a powerful Chrome Extension that bridges the gap between Web Applic
 
 ## 🚀 Installation & Setup
 
-1.  **One-Click Registration**:
-    - **Mac**: Double-click `install_setup_mac.command`
-    - **Windows**: Run `install_setup_windows.bat` (As Admin)
-    - **Linux**: Run `install_setup_linux.sh`
-2.  **Zero Configuration**: 
-    - The Extension ID is now locked via a permanent key in `manifest.json`.
-    - The setup scripts automatically register the bridge.
+1.  **Professional Setup**:
+    - **Mac**: Double-click `install_mac.pkg`
+    - **Windows**: Right-click `install_windows.ps1` -> 'Run with PowerShell'
+    - **Linux**: Run `bash install_linux.sh`
+2.  **Platform Guides**:
+    - Each bundle includes a specific `guide_xxx.txt` with detailed steps.
 3.  **Restart Chrome** (Critical).
 
 ---
 
 ## 🗑️ Uninstallation
 
-Should you need to remove the hardware bridge, each directory contains an uninstaller:
+Should you need to remove the hardware bridge, use the uninstaller scripts:
 - **Mac**: `uninstall_setup_mac.command`
 - **Windows**: `uninstall_setup_windows.bat`
 - **Linux**: `uninstall_setup_linux.sh`

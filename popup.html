@@ -1,199 +1,123 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Local TCP</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <meta charset="UTF-8">
+  <title>Local TCP Bridge</title>
   <style>
     :root {
-      --primary: #5dc095;
-      --primary-dim: rgba(93, 192, 149, 0.1);
-      --primary-glow: rgba(93, 192, 149, 0.25);
-      --bg: #0b0b0d;
-      --surface: #141417;
-      --surface-bright: #1c1c21;
-      --border: #26262b;
-      --text: #ffffff;
-      --text-dim: #94949e;
-      --error: #ff5858;
-      --success: #5dc095;
-      --warning: #ffb86c;
-      --radius: 12px;
-      --font-main: 'Inter', sans-serif;
-      --font-mono: 'JetBrains Mono', monospace;
+      --primary: #1a73e8;
+      --primary-hover: #1557b0;
+      --bg: #ffffff;
+      --text: #3c4043;
+      --gray: #5f6368;
+      --border: #dadce0;
+      --success: #1e8e3e;
+      --error: #d93025;
+      --warning: #f29900;
     }
-
-    * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      width: 360px;
-      min-height: 500px;
-      background: var(--bg);
+      font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      width: 320px;
+      margin: 0;
+      padding: 16px;
       color: var(--text);
-      font-family: var(--font-main);
-      overflow-x: hidden;
-      display: flex;
-      flex-direction: column;
+      background: var(--bg);
+      font-size: 14px;
     }
 
-    /* ── Header ────────────────────────────────────────── */
     .header {
-      padding: 24px 20px 20px;
-      background: linear-gradient(180deg, var(--surface) 0%, var(--bg) 100%);
-      border-bottom: 1px solid var(--border);
-      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
     }
 
     .brand {
       display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .logo-row {
-      display: flex;
       align-items: center;
-      gap: 12px;
-      margin-bottom: 4px;
+      gap: 8px;
     }
 
-    .logo-box {
-      width: 40px;
-      height: 40px;
+    .logo {
+      width: 24px;
+      height: 24px;
       background: var(--primary);
-      border-radius: 10px;
+      border-radius: 4px;
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 0 20px var(--primary-glow);
-      overflow: hidden;
-    }
-
-    .logo-box img {
-      width: 32px;
-      height: 32px;
-      object-fit: contain;
+      color: white;
+      font-weight: bold;
+      font-size: 12px;
     }
 
     .title {
-      font-size: 18px;
-      font-weight: 800;
-      letter-spacing: -0.5px;
+      font-weight: 600;
+      font-size: 16px;
     }
 
-    .tagline {
-      font-size: 11px;
-      color: var(--text-dim);
-      font-weight: 500;
-      line-height: 1.4;
-    }
-
-    /* ── Status indicator ──────────────────────────────── */
     .status-badge {
-      position: absolute;
-      top: 24px;
-      right: 20px;
       display: flex;
       align-items: center;
       gap: 6px;
-      background: var(--surface);
-      padding: 4px 10px;
-      border-radius: 20px;
-      border: 1px solid var(--border);
+      font-size: 12px;
+      padding: 4px 8px;
+      background: #f1f3f4;
+      border-radius: 12px;
     }
 
     .dot {
-      width: 6px;
-      height: 6px;
+      width: 8px;
+      height: 8px;
       border-radius: 50%;
-      background: #444;
+      background: #bdc1c6;
     }
 
-    .dot.active {
-      background: var(--success);
-      box-shadow: 0 0 8px var(--success);
-    }
-    
+    .dot.active { background: var(--success); }
     .dot.error { background: var(--error); }
 
-    .status-text {
-      font-size: 10px;
-      font-weight: 700;
-      color: var(--text-dim);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
+    .state { display: none; }
+    .state.active { display: block; }
 
-    /* ── States ────────────────────────────────────────── */
-    .state { display: none; flex: 1; flex-direction: column; padding: 20px; }
-    .state.active { display: flex; }
-
-    /* ── Setup Required State ──────────────────────────── */
-    .setup-state {
-      text-align: center;
-      align-items: center;
-      justify-content: center;
-      padding-top: 40px;
-    }
-
-    .setup-icon {
-      width: 64px;
-      height: 64px;
-      color: var(--warning);
-      margin-bottom: 20px;
-      opacity: 0.8;
-    }
-
+    /* Setup Steps */
     .setup-title {
-      font-size: 20px;
-      font-weight: 700;
+      font-weight: 600;
       margin-bottom: 12px;
     }
 
-    .setup-desc {
-      font-size: 13px;
-      color: var(--text-dim);
-      line-height: 1.6;
-      margin-bottom: 30px;
-    }
-
-    .setup-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 16px;
-      text-align: left;
-      width: 100%;
-      margin-bottom: 24px;
+    .steps {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 20px;
     }
 
     .step {
       display: flex;
       gap: 12px;
-      margin-bottom: 12px;
     }
 
     .step-num {
       width: 20px;
       height: 20px;
-      background: var(--border);
-      color: var(--text-dim);
+      background: #e8f0fe;
+      color: var(--primary);
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 10px;
-      font-weight: 800;
+      font-size: 11px;
+      font-weight: 600;
       flex-shrink: 0;
     }
 
-    .step-text { font-size: 12px; line-height: 1.4; color: var(--text-dim); }
-    .step-text b { color: var(--text); }
+    .step-text {
+      font-size: 13px;
+      line-height: 1.4;
+    }
 
-    /* ── Main Dashboard State ──────────────────────────── */
-    .dashboard-state {}
-
+    /* Dashboard */
     .section-header {
       display: flex;
       justify-content: space-between;
@@ -202,31 +126,18 @@
     }
 
     .section-title {
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 1.5px;
-      color: var(--text-dim);
-      font-weight: 700;
-    }
-
-    .tiny-action {
-      background: transparent;
-      border: none;
-      color: var(--text-dim);
-      font-size: 10px;
       font-weight: 600;
-      cursor: pointer;
-      padding: 2px 4px;
+      font-size: 13px;
+      color: var(--gray);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
 
-    .tiny-action:hover { color: var(--error); }
-
-    /* ── Input Field ───────────────────────────────────── */
     .field-group {
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-      margin-bottom: 24px;
+      background: #f8f9fa;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 16px;
     }
 
     .field {
@@ -235,165 +146,136 @@
       gap: 6px;
     }
 
-    .field label {
+    label {
       font-size: 11px;
       font-weight: 600;
-      color: var(--text-dim);
+      color: var(--gray);
     }
 
     .input-row {
-      position: relative;
       display: flex;
       gap: 8px;
     }
 
     input {
-      flex: 1;
-      background: var(--surface);
       border: 1px solid var(--border);
-      padding: 12px 14px;
-      border-radius: 10px;
-      color: var(--text);
-      font-family: var(--font-mono);
+      padding: 8px 12px;
+      border-radius: 4px;
       font-size: 13px;
+      flex: 1;
       outline: none;
-      transition: all 0.2s ease;
     }
 
-    input:focus {
-      border-color: var(--primary);
-      background: var(--surface-bright);
-      box-shadow: 0 0 0 4px var(--primary-dim);
-    }
+    input:focus { border-color: var(--primary); }
 
-    .port-input { width: 90px; flex: none; }
+    .port-input { width: 70px; flex: none; }
 
-    /* ── Buttons ───────────────────────────────────────── */
     .actions {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      margin-top: 8px;
-    }
-
-    button {
-      padding: 12px;
-      border-radius: 10px;
-      font-size: 13px;
-      font-weight: 700;
-      cursor: pointer;
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-      border: 1px solid transparent;
-      outline: none;
       display: flex;
-      align-items: center;
-      justify-content: center;
       gap: 8px;
     }
 
-    .btn-block { width: 100%; grid-column: span 2; }
-
     .btn-primary {
       background: var(--primary);
-      color: #000;
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 500;
+      flex: 1;
+      transition: background 0.2s;
     }
 
-    .btn-primary:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 20px var(--primary-glow);
-    }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
 
     .btn-secondary {
-      background: transparent;
-      border-color: var(--border);
-      color: var(--text);
-    }
-
-    .btn-secondary:hover {
-      background: var(--surface);
-      border-color: var(--primary);
+      background: white;
       color: var(--primary);
+      border: 1px solid var(--border);
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: background 0.2s;
     }
 
-    /* ── Activity Log ──────────────────────────────────── */
+    .btn-secondary:hover { background: #f8f9fa; }
+
+    .btn-block { width: 100%; display: block; }
+
+    .tiny-action {
+      background: none;
+      border: none;
+      color: var(--primary);
+      font-size: 11px;
+      cursor: pointer;
+      padding: 0;
+    }
+
+    .tiny-action:hover { text-decoration: underline; }
+
+    /* Logs */
     .log-container {
-      margin-top: 28px;
+      margin-top: 20px;
     }
 
     .log-box {
-      background: #000;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 12px;
+      background: #202124;
+      color: #e8eaed;
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 11px;
+      padding: 10px;
+      border-radius: 4px;
       height: 120px;
       overflow-y: auto;
-      font-family: var(--font-mono);
-      font-size: 10px;
-      line-height: 1.6;
-      color: var(--text-dim);
+      display: flex;
+      flex-direction: column-reverse;
     }
 
-    .log-entry { margin-bottom: 4px; display: flex; gap: 8px; }
-    .log-time { color: #555; flex-shrink: 0; }
-    .log-msg { word-break: break-all; }
-    .log-msg.success { color: var(--success); }
-    .log-msg.error { color: var(--error); }
+    .log-entry { margin-bottom: 4px; line-height: 1.4; }
+    .log-time { color: #9aa0a6; margin-right: 8px; }
+    .log-msg.success { color: #81c995; }
+    .log-msg.error { color: #f28b82; }
+    .log-msg.warning { color: #fdd663; }
 
-    /* Scrollbar */
-    ::-webkit-scrollbar { width: 4px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+    .common-footer {
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
   </style>
 </head>
 <body>
   <div class="header">
+    <div class="brand">
+      <div class="logo">T</div>
+      <div class="title">Local TCP</div>
+    </div>
     <div class="status-badge">
       <div class="dot" id="statusDot"></div>
-      <span class="status-text" id="statusText">Checking...</span>
-    </div>
-    <div class="brand">
-      <div class="logo-row">
-        <div class="logo-box">
-          <img src="icons/icon128.png" alt="Local TCP">
-        </div>
-        <span class="title">Local TCP</span>
-      </div>
-      <p class="tagline">Your browser can finally talk with local TCP.</p>
+      <span id="statusText">Checking...</span>
     </div>
   </div>
 
   <!-- State 1: Setup Required -->
-  <div class="state setup-state" id="setupState">
-    <div class="setup-icon">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
-      </svg>
-    </div>
-    <h1 class="setup-title">Hardware Bridge Required</h1>
-    <p class="setup-desc">To talk to local printers, you need to install a one-time bridge component.</p>
-    
-    <div class="setup-card">
+  <div class="state setup-state active" id="setupState">
+    <div class="setup-title">Setup Required</div>
+    <div class="steps">
       <div class="step">
         <div class="step-num">1</div>
-        <div class="step-text"><b>Download</b> and unzip the bridge package.</div>
+        <div class="step-text">Download the <b>Setup Kit</b> below.</div>
       </div>
       <div class="step">
         <div class="step-num">2</div>
-        <div class="step-text">Run <b>install_setup_mac.command</b> (or Windows .bat).</div>
+        <div class="step-text">Run the installer for your computer.</div>
       </div>
       <div class="step">
         <div class="step-num">3</div>
         <div class="step-text"><b>Restart Chrome</b> to activate the bridge.</div>
       </div>
     </div>
-
-    <div class="setup-desc" style="margin-top: -10px; font-size: 11px;">
-      Need to remove it? Simply run the <b>uninstall</b> file in the same folder.
-    </div>
-
-    <button class="btn-primary btn-block" id="downloadBtn">
-      Download Setup Kit
-    </button>
   </div>
 
   <!-- State 2: Dashboard -->
@@ -425,6 +307,16 @@
       </div>
       <div class="log-box" id="logBox"></div>
     </div>
+  </div>
+
+  <!-- Common Footer Actions -->
+  <div class="common-footer">
+    <div class="setup-desc" style="text-align: center; margin-bottom: 8px; font-size: 11px; opacity: 0.8;">
+      Need to download or remove the bridge?
+    </div>
+    <button class="btn-secondary btn-block" id="downloadBtn" style="margin-bottom: 20px;">
+      Download Setup Kit
+    </button>
   </div>
 
   <script src="jszip.min.js"></script>

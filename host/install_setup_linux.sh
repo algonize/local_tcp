@@ -1,29 +1,30 @@
 #!/bin/bash
 
-# Algonize Local TCP - Linux Setup
-# Run this script to register the hardware bridge with Chrome
+# Algonize Local TCP - Professional Linux Installer
+# Registers the hardware bridge with Chrome securely.
 
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-HOST_NAME="com.algonize.localtcp"
-MANIFEST_NAME="com.algonize.localtcp.json"
+HOST_NAME="com.algoramming.localtcp"
+INSTALL_DIR="$HOME/.local/lib/algonize/localtcp"
 TARGET_DIR="$HOME/.config/google-chrome/NativeMessagingHosts"
 
 echo "----------------------------------------------------"
-echo "🚀 Algonize Local TCP Bridge - Setup (Linux)"
+echo "🚀 Local TCP Bridge - Setup (Linux)"
 echo "----------------------------------------------------"
 
-# 1. Ensure directory exists
+# 1. Create directory structure
+mkdir -p "$INSTALL_DIR"
 mkdir -p "$TARGET_DIR"
 
-# 2. Make host executable
-chmod +x "$DIR/index.js"
+# 2. Copy files
+cp index.js "$INSTALL_DIR/"
+cp "$HOST_NAME.json" "$INSTALL_DIR/"
+chmod +x "$INSTALL_DIR/index.js"
 
-# 3. Register Manifest
-# The Extension ID is now locked in the manifest.json and hardcoded in the bridge
-sed "s|HOST_PATH|$DIR/index.js|g" "$DIR/$MANIFEST_NAME" > "$TARGET_DIR/$HOST_NAME.json"
+# 3. Generate manifest with absolute path
+sed "s|HOST_PATH|$INSTALL_DIR/index.js|g" "$INSTALL_DIR/$HOST_NAME.json" > "$TARGET_DIR/$HOST_NAME.json"
 
-echo "✅ Bridge registered successfully."
-echo "📍 Location: $TARGET_DIR/$HOST_NAME.json"
+echo "✅ Bridge installed successfully!"
+echo "📍 Location: $INSTALL_DIR"
 echo ""
-echo "👉 Restart Chrome to activate the bridge."
+echo "👉 Please restart Chrome to complete the setup."
 echo "----------------------------------------------------"

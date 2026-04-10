@@ -1,0 +1,16 @@
+Local TCP Bridge - Windows Setup
+-----------------------------------------
+
+1. Right-click 'install_windows.ps1' and select 'Run with PowerShell'.
+2. If prompt appears, select 'Yes' to allow the script.
+3. IMPORTANT: Restart Chrome after the installation window closes.
+
+Need to remove it? We've included an uninstaller script for your convenience.
+
+-----------------------------------------
+🗑️ UNINSTALLATION
+-----------------------------------------
+Should you need to remove the bridge from your Windows PC:
+1. Right-click 'uninstall_windows.ps1' and select 'Run with PowerShell'.
+2. This will remove the files and the registry registration.
+-----------------------------------------
