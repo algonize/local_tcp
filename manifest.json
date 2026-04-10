@@ -1,5 +1,5 @@
 {
-  "manifest_version": 3,
+  "manifest_version": 1,
   "name": "Local TCP",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA3IkeQrbEjoLH3Os0iX59Z4RBUN1VGplPq68q/sHxLXN4/B8jgVnzuX4tvuZkmWYkqY9gf+Fd1JoSgch2pFDlN5VzRG/5tZS0RSt2yGzpeYTpYc6eyW24WKEV3B1iwnziZW1oCu1zRbyEl7/Itlhe+MWa0+0DIZb4+7afHpv1YUSUDn7s/gawXH9hYct0fjJBIq5bKuwmEjPIxY5iSVXd9uBRLTCKWkt4yAIfmLBE4G73nX2n67bjUHGf/PCuy5KmInmKS2mbbHeOez+/7Vxn+cLX9ptk0PSQ2KueoigR3Ncjzf6CXtrT773Un2nsFdKSFLJaEOZLQ2LxSc95uWuHwwIDAQAB",
   "version": "1.0.0",
@@ -23,8 +23,12 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["content.js"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_start"
     }
   ],
