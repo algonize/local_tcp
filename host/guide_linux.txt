@@ -2,17 +2,15 @@ Local TCP Bridge - Linux Setup
 -----------------------------------------
 
 1. Open a terminal in this folder.
-2. Run: bash install_linux.sh
+2. Run: bash install_setup_linux.sh
 3. The script will register the bridge with Chrome automatically.
 4. IMPORTANT: Restart Chrome after the installation finishes.
-
-Need to remove it? Simply run 'bash uninstall_linux.sh'.
 
 -----------------------------------------
 🗑️ UNINSTALLATION
 -----------------------------------------
 Should you need to remove the bridge from your Linux system:
 1. Open a terminal.
-2. Run: bash uninstall_linux.sh
+2. Run: bash uninstall_setup_linux.sh
 3. This will remove the files and the Chrome registration.
 -----------------------------------------

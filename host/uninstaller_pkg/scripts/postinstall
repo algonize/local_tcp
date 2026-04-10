@@ -1,0 +1,14 @@
+#!/bin/bash
+# Professional Mac Uninstaller for Local TCP Bridge
+INSTALL_DIR="/usr/local/lib/com.algoramming.localtcp"
+TARGET_DIR="/Library/Google/Chrome/NativeMessagingHosts"
+HOST_NAME="com.algoramming.localtcp"
+echo "🗑️ Removing Local TCP Bridge..."
+if [ -f "$TARGET_DIR/$HOST_NAME.json" ]; then
+    rm -f "$TARGET_DIR/$HOST_NAME.json"
+fi
+if [ -d "$INSTALL_DIR" ]; then
+    rm -rf "$INSTALL_DIR"
+fi
+echo "✅ Uninstallation Complete."
+exit 0
