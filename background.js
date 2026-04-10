@@ -13,7 +13,8 @@ function getNativePort() {
       nativePort = chrome.runtime.connectNative(HOST_NAME);
       
       nativePort.onMessage.addListener((msg) => {
-        console.log('Native Host Response:', msg);
+        // Log basic success/error but avoid logging massive binary responses
+        if (msg.error) console.error('Bridge Error:', msg.error);
       });
 
       nativePort.onDisconnect.addListener(() => {
