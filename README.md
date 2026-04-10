@@ -1,63 +1,80 @@
-# 🛰️ Local TCP Bridge
+# 🛰️ Local TCP Bridge (Native Edition)
 
 **Your browser can finally talk with local TCP.**
 
-Local TCP is a powerful Chrome Extension that bridges the gap between modern Web Applications and local network devices. It allows web apps (like Flutter Web, React, or Vue) to communicate with TCP-based hardware—primarily ESC/POS thermal printers—without requiring a complex backend or local server relay.
+Local TCP is a powerful Chrome Extension that bridges the gap between Web Applications and physical ESC/POS hardware using a **Native Messaging Bridge**.
 
 ---
 
-## ✨ Features
+## 🏗️ Architecture
 
-- **Direct TCP Sockets**: Leverages native browser socket APIs to connect to any IP/Port.
-- **Persistent Configuration**: Save your printer IP/Port once; send data-only requests thereafter.
-- **Smart API**: Automatically saves configuration when provided via API calls.
-- **Premium UI**: Clean, modern interface designed for developers and power users.
-- **Platform Agnostic**: Works with any website that can send `window.postMessage`.
+1.  **Extension**: Manages UI and bridges web page messages.
+2.  **Native Host**: A lightweight Node.js script (`host/index.js`) that handles raw TCP sockets.
+3.  **Client**: Your Flutter Web app or any site using the protocol.
 
 ---
 
-## 🚀 Installation
+## 🚀 Installation & Setup
 
-1.  Clone this repository.
-2.  Open Chrome and navigate to `chrome://extensions`.
-3.  Enable **Developer Mode** (top right).
-4.  Click **Load Unpacked** and select the `local_tcp` folder.
-5.  Click the extension icon to configure your default Host and Port.
+1.  **One-Click Registration**:
+    - **Mac**: Double-click `install_setup_mac.command`
+    - **Windows**: Run `install_setup_windows.bat` (As Admin)
+    - **Linux**: Run `install_setup_linux.sh`
+2.  **Zero Configuration**: 
+    - The Extension ID is now locked via a permanent key in `manifest.json`.
+    - The setup scripts automatically register the bridge.
+3.  **Restart Chrome** (Critical).
 
 ---
 
-## 💻 Integration
+## 🗑️ Uninstallation
 
-Integrating Local TCP into your project is as simple as sending a JavaScript message:
+Should you need to remove the hardware bridge, each directory contains an uninstaller:
+- **Mac**: `uninstall_setup_mac.command`
+- **Windows**: `uninstall_setup_windows.bat`
+- **Linux**: `uninstall_setup_linux.sh`
+
+---
+
+## 📡 Message Protocol (Developer API)
+
+### Request Format
+Send a `window.postMessage` with `source: 'localtcp_req'`.
 
 ```javascript
 window.postMessage({
   source: 'localtcp_req',
-  action: 'PRINT',
-  data: [27, 64, 72, 101, 108, 108, 111, 10, 29, 86, 65, 0] // ESC/POS bytes
+  messageId: 'unique-uuid',
+  action: 'PRINT', // PING, CONNECT, PRINT, SEND, DISCONNECT
+  data: [27, 64, 10, ...] // Byte array
 }, '*');
 ```
 
-For full API details, see [API.md](./API.md).
+### 💙 Using with Flutter Web
+
+To connect your Flutter Web app to the bridge, use the `dart:html` library (or `package:web` in newer versions) to send the print data:
+
+```dart
+import 'dart:html' as html;
+
+void printToAlgonize(List<int> bytes) {
+  // Use window.postMessage to talk to the extension
+  html.window.postMessage({
+    'source': 'localtcp_req',
+    'messageId': DateTime.now().millisecondsSinceEpoch.toString(),
+    'action': 'PRINT',
+    'data': bytes,
+  }, '*');
+}
+```
 
 ---
 
-## 🎨 Branding
-
-- **Name**: Local TCP
-- **Primary Color**: `#5dc095`
-- **Tagline**: Your browser can finally talk with local TCP.
-
----
-
-## 🛠️ Tech Stack
-
-- **Manifest V3**: Using modern service worker architecture.
-- **Chrome Sockets API**: Low-level TCP management.
-- **Vanilla JS & CSS**: Fast, lightweight, and zero-dependency UI.
+## 🛡️ Security & Fallback
+- **Persistence**: Extension saves the last used Host/Port in `chrome.storage.local`.
+- **Fallback**: If an API call omits host/port, the extension uses the saved config.
 
 ---
 
 ## 📄 License
-
-MIT License - feel free to use and distribute.
+MIT License - Algonize 2025.

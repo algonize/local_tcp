@@ -1,19 +1,54 @@
 // Local TCP - popup.js
-// Handles configuration UI and storage
+// Handles configuration, UI states, and bridge status
 
 document.addEventListener('DOMContentLoaded', async () => {
+  const setupState = document.getElementById('setupState');
+  const dashboardState = document.getElementById('dashboardState');
+  const statusDot = document.getElementById('statusDot');
+  const statusText = document.getElementById('statusText');
+  
   const hostInput = document.getElementById('hostInput');
   const portInput = document.getElementById('portInput');
+  
   const saveBtn = document.getElementById('saveBtn');
   const testBtn = document.getElementById('testBtn');
+  const downloadBtn = document.getElementById('downloadBtn');
+  const resetConfigBtn = document.getElementById('resetConfigBtn');
+  const clearLogsBtn = document.getElementById('clearLogsBtn');
   const logBox = document.getElementById('logBox');
 
-  // 1. Load existing settings
-  const stored = await chrome.storage.local.get(['printerHost', 'printerPort']);
-  if (stored.printerHost) hostInput.value = stored.printerHost;
-  if (stored.printerPort) portInput.value = stored.printerPort;
+  // 1. Check Bridge Status
+  async function checkBridge() {
+    statusText.textContent = 'Checking...';
+    statusDot.className = 'dot';
+    
+    return new Promise((resolve) => {
+      chrome.runtime.sendMessage({ action: 'CHECK_BRIDGE' }, (res) => {
+        if (res && res.connected) {
+          statusText.textContent = 'Bridge Linked';
+          statusDot.className = 'dot active';
+          setupState.classList.remove('active');
+          dashboardState.classList.add('active');
+          resolve(true);
+        } else {
+          statusText.textContent = 'Setup Required';
+          statusDot.className = 'dot error';
+          setupState.classList.add('active');
+          dashboardState.classList.remove('active');
+          resolve(false);
+        }
+      });
+    });
+  }
 
-  // ─── Logging Helper ────────────────────────────────────────────────────────
+  // 2. Load settings
+  async function loadSettings() {
+    const stored = await chrome.storage.local.get(['printerHost', 'printerPort']);
+    if (stored.printerHost) hostInput.value = stored.printerHost;
+    if (stored.printerPort) portInput.value = stored.printerPort;
+  }
+
+  // 3. Logging Helper
   function addLog(message, type = 'info') {
     const entry = document.createElement('div');
     entry.className = 'log-entry';
@@ -29,54 +64,69 @@ document.addEventListener('DOMContentLoaded', async () => {
     entry.appendChild(time);
     entry.appendChild(msg);
     logBox.prepend(entry);
+    
+    // Limit logs
+    if (logBox.children.length > 50) logBox.removeChild(logBox.lastChild);
   }
 
-  // ─── Save Settings ─────────────────────────────────────────────────────────
+  // Initial check
+  const isLinked = await checkBridge();
+  if (isLinked) await loadSettings();
+
+  // ─── Actions ───────────────────────────────────────────────────────────────
+
   saveBtn.addEventListener('click', async () => {
     const host = hostInput.value.trim();
     const port = portInput.value.trim();
-
-    if (!host || !port) {
-      addLog('Error: Host and Port are required.', 'error');
-      return;
-    }
-
+    if (!host || !port) return addLog('Host and Port required.', 'error');
+    
     await chrome.storage.local.set({ printerHost: host, printerPort: port });
-    addLog(`Configuration saved: ${host}:${port}`, 'success');
+    addLog(`Config saved: ${host}:${port}`, 'success');
   });
 
-  // ─── Test Connection ───────────────────────────────────────────────────────
   testBtn.addEventListener('click', async () => {
     const host = hostInput.value.trim();
     const port = portInput.value.trim();
-
-    if (!host || !port) {
-      addLog('Error: Host and Port required to test.', 'error');
-      return;
-    }
+    if (!host || !port) return addLog('Host/Port missing.', 'error');
 
     testBtn.disabled = true;
-    testBtn.textContent = 'Testing...';
-    
+    testBtn.textContent = 'Pinging...';
     try {
-      addLog(`Attempting to connect to ${host}:${port}...`);
-      
-      const response = await new Promise((resolve) => {
-        chrome.runtime.sendMessage({ action: 'CONNECT', host, port }, resolve);
+      chrome.runtime.sendMessage({ action: 'CONNECT', host, port }, (res) => {
+        if (res && res.success) {
+          addLog(`Success: ${res.message}`, 'success');
+          chrome.runtime.sendMessage({ action: 'DISCONNECT' });
+        } else {
+          addLog(`Error: ${res?.error || 'Unknown error'}`, 'error');
+        }
+        testBtn.disabled = false;
+        testBtn.textContent = 'Test Ping';
       });
-
-      if (response && response.success) {
-        addLog(`Connection successful: ${response.message}`, 'success');
-        // Automatically disconnect after test
-        chrome.runtime.sendMessage({ action: 'DISCONNECT' });
-      } else {
-        addLog(`Failed: ${response?.error || 'Unknown error'}`, 'error');
-      }
-    } catch (err) {
-      addLog(`System Error: ${err.message}`, 'error');
-    } finally {
+    } catch (e) {
+      addLog(`Failed: ${e.message}`, 'error');
       testBtn.disabled = false;
-      testBtn.textContent = 'Test Connection';
+      testBtn.textContent = 'Test Ping';
+    }
+  });
+
+  downloadBtn.addEventListener('click', () => {
+    addLog('Installer instructions:', 'warning');
+    addLog('1. Go to the "local_tcp/host" directory in your files.');
+    addLog('2. Run the setup file for your OS.');
+    alert('Setup Guide:\nPlease navigate to the "local_tcp/host" folder in your installation and run the "install_setup_mac.command" or "install_setup_windows.bat" file.');
+  });
+
+  clearLogsBtn.addEventListener('click', () => {
+    logBox.innerHTML = '';
+    addLog('Logs cleared.');
+  });
+
+  resetConfigBtn.addEventListener('click', async () => {
+    if (confirm('Are you sure you want to reset all printer settings?')) {
+      await chrome.storage.local.clear();
+      hostInput.value = '';
+      portInput.value = '';
+      addLog('All local data cleared.', 'warning');
     }
   });
 });
