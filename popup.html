@@ -4,319 +4,300 @@
   <meta charset="UTF-8">
   <title>Local TCP Bridge</title>
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
     :root {
-      --primary: #1a73e8;
-      --primary-hover: #1557b0;
-      --bg: #ffffff;
-      --text: #3c4043;
-      --gray: #5f6368;
-      --border: #dadce0;
-      --success: #1e8e3e;
-      --error: #d93025;
-      --warning: #f29900;
+      --bg-dark: #0f172a;
+      --bg-card: rgba(30, 41, 59, 0.7);
+      --accent-primary: #5DC095;
+      --accent-glow: rgba(93, 192, 149, 0.2);
+      --success: #5DC095;
+      --error: #fb7185;
+      --text-main: #f8fafc;
+      --text-dim: #94a3b8;
+      --border: rgba(255, 255, 255, 0.1);
+      --shadow-neon: 0 0 20px var(--accent-glow);
     }
+
+    * { box-sizing: border-box; }
 
     body {
-      font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-      width: 320px;
+      font-family: 'Inter', sans-serif;
+      width: 360px;
       margin: 0;
-      padding: 16px;
-      color: var(--text);
-      background: var(--bg);
-      font-size: 14px;
+      padding: 0;
+      background: var(--bg-dark);
+      color: var(--text-main);
+      overflow-x: hidden;
     }
 
+    .container {
+      padding: 24px;
+      background: linear-gradient(180deg, rgba(93, 192, 149, 0.05) 0%, rgba(15, 23, 42, 0) 100%);
+      min-height: 500px;
+    }
+
+    /* Header & Status */
     .header {
       display: flex;
-      align-items: center;
       justify-content: space-between;
-      margin-bottom: 20px;
+      align-items: center;
+      margin-bottom: 24px;
     }
 
     .brand {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 12px;
     }
 
-    .logo {
-      width: 24px;
-      height: 24px;
-      background: var(--primary);
-      border-radius: 4px;
+    .logo-box {
+      width: 32px;
+      height: 32px;
+      background: #ffffff;
+      border-radius: 8px;
       display: flex;
       align-items: center;
       justify-content: center;
-      color: white;
-      font-weight: bold;
-      font-size: 12px;
+      box-shadow: var(--shadow-neon);
+      overflow: hidden;
     }
 
-    .title {
-      font-weight: 600;
-      font-size: 16px;
+    .logo-box img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    .brand h1 {
+      font-size: 18px;
+      font-weight: 700;
+      margin: 0;
+      letter-spacing: -0.5px;
     }
 
     .status-badge {
+      padding: 6px 12px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
       display: flex;
       align-items: center;
-      gap: 6px;
-      font-size: 12px;
-      padding: 4px 8px;
-      background: #f1f3f4;
-      border-radius: 12px;
+      gap: 8px;
+      backdrop-filter: blur(4px);
     }
 
     .dot {
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      background: #bdc1c6;
+      background: #475569;
     }
+    .dot.active { background: var(--success); box-shadow: 0 0 10px var(--success); }
+    .dot.error { background: var(--error); box-shadow: 0 0 10px var(--error); }
 
-    .dot.active { background: var(--success); }
-    .dot.error { background: var(--error); }
-
-    .state { display: none; }
+    /* State Management */
+    .state { display: none; margin-bottom: 24px; animation: slideUp 0.3s ease-out; }
     .state.active { display: block; }
 
-    /* Setup Steps */
-    .setup-title {
-      font-weight: 600;
-      margin-bottom: 12px;
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
-    .steps {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      margin-bottom: 20px;
-    }
-
-    .step {
-      display: flex;
-      gap: 12px;
-    }
-
-    .step-num {
-      width: 20px;
-      height: 20px;
-      background: #e8f0fe;
-      color: var(--primary);
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 11px;
-      font-weight: 600;
-      flex-shrink: 0;
-    }
-
-    .step-text {
-      font-size: 13px;
-      line-height: 1.4;
-    }
-
-    /* Dashboard */
-    .section-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 12px;
-    }
-
-    .section-title {
-      font-weight: 600;
-      font-size: 13px;
-      color: var(--gray);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    .field-group {
-      background: #f8f9fa;
-      padding: 12px;
-      border-radius: 8px;
+    /* Cards */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      backdrop-filter: blur(8px);
       margin-bottom: 16px;
     }
 
-    .field {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    label {
-      font-size: 11px;
+    .card-title {
+      font-size: 12px;
       font-weight: 600;
-      color: var(--gray);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-dim);
+      margin-bottom: 16px;
     }
 
-    .input-row {
-      display: flex;
-      gap: 8px;
-    }
-
+    /* Form Fields */
+    .field-row { display: flex; gap: 12px; margin-bottom: 16px; }
+    .input-wrapper { flex: 1; }
+    .input-wrapper label { display: block; font-size: 11px; color: var(--text-dim); margin-bottom: 6px; }
+    
     input {
+      width: 100%;
+      background: rgba(15, 23, 42, 0.5);
       border: 1px solid var(--border);
-      padding: 8px 12px;
-      border-radius: 4px;
+      border-radius: 8px;
+      padding: 12px;
+      color: white;
       font-size: 13px;
-      flex: 1;
-      outline: none;
+      transition: all 0.2s;
     }
 
-    input:focus { border-color: var(--primary); }
+    input:focus { border-color: var(--accent-primary); outline: none; box-shadow: 0 0 0 2px rgba(93, 192, 149, 0.1); }
 
-    .port-input { width: 70px; flex: none; }
+    .port-input { width: 80px; }
 
-    .actions {
+    /* Buttons */
+    .btn {
+      width: 100%;
+      padding: 12px;
+      border-radius: 10px;
+      border: none;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
       display: flex;
+      align-items: center;
+      justify-content: center;
       gap: 8px;
+      transition: all 0.2s;
     }
 
     .btn-primary {
-      background: var(--primary);
-      color: white;
-      border: none;
-      padding: 10px 16px;
-      border-radius: 4px;
-      cursor: pointer;
-      font-weight: 500;
-      flex: 1;
-      transition: background 0.2s;
+      background: var(--accent-primary);
+      color: var(--bg-dark);
     }
-
-    .btn-primary:hover { background: var(--primary-hover); }
-    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-primary:hover { transform: translateY(-1px); opacity: 0.9; }
 
     .btn-secondary {
-      background: white;
-      color: var(--primary);
+      background: rgba(255, 255, 255, 0.05);
       border: 1px solid var(--border);
-      padding: 8px 16px;
-      border-radius: 4px;
-      cursor: pointer;
-      font-weight: 500;
-      transition: background 0.2s;
+      color: white;
     }
+    .btn-secondary:hover { background: rgba(255, 255, 255, 0.1); }
 
-    .btn-secondary:hover { background: #f8f9fa; }
+    .btn-test { width: auto; flex: 1; }
 
-    .btn-block { width: 100%; display: block; }
-
-    .tiny-action {
-      background: none;
-      border: none;
-      color: var(--primary);
-      font-size: 11px;
-      cursor: pointer;
-      padding: 0;
-    }
-
-    .tiny-action:hover { text-decoration: underline; }
-
-    /* Logs */
-    .log-container {
-      margin-top: 20px;
-    }
-
+    /* Activity Monitor */
+    .activity-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
     .log-box {
-      background: #202124;
-      color: #e8eaed;
-      font-family: 'Consolas', 'Monaco', monospace;
-      font-size: 11px;
-      padding: 10px;
-      border-radius: 4px;
       height: 120px;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 12px;
+      padding: 12px;
+      font-family: 'Monaco', monospace;
+      font-size: 11px;
       overflow-y: auto;
-      display: flex;
-      flex-direction: column-reverse;
+      border: 1px solid var(--border);
     }
 
-    .log-entry { margin-bottom: 4px; line-height: 1.4; }
-    .log-time { color: #9aa0a6; margin-right: 8px; }
-    .log-msg.success { color: #81c995; }
-    .log-msg.error { color: #f28b82; }
-    .log-msg.warning { color: #fdd663; }
+    .log-entry { margin-bottom: 6px; display: flex; gap: 8px; }
+    .log-time { color: var(--text-dim); }
+    .log-msg.success { color: var(--success); }
+    .log-msg.error { color: var(--error); }
 
-    .common-footer {
-      margin-top: 20px;
-      padding-top: 16px;
+    /* Footer */
+    .footer {
+      margin-top: 24px;
       border-top: 1px solid var(--border);
+      padding-top: 24px;
+      text-align: center;
     }
+
+    .footer p { font-size: 12px; color: var(--text-dim); margin-bottom: 12px; }
+
+    .step-list { margin-bottom: 20px; }
+    .step-item { display: flex; gap: 12px; margin-bottom: 12px; align-items: flex-start; }
+    .step-indicator { 
+      width: 20px; height: 20px; background: rgba(93, 192, 149, 0.1); 
+      color: var(--accent-primary); border-radius: 50%; display: flex; 
+      align-items: center; justify-content: center; font-size: 10px; font-weight: 800;
+    }
+    .step-text { font-size: 12px; color: var(--text-dim); line-height: 1.5; }
+    .step-text b { color: white; }
+
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+
+    .tiny-btn { background: none; border: none; color: var(--accent-primary); font-size: 11px; cursor: pointer; padding: 0;}
+    .tiny-btn:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
-  <div class="header">
-    <div class="brand">
-      <div class="logo">T</div>
-      <div class="title">Local TCP</div>
+  <div class="container">
+    <div class="header">
+      <div class="brand">
+        <div class="logo-box">
+          <img src="icons/icon128.png" alt="Logo">
+        </div>
+        <h1>Local TCP</h1>
+      </div>
+      <div class="status-badge">
+        <div class="dot" id="statusDot"></div>
+        <span id="statusText">DETECTING...</span>
+      </div>
     </div>
-    <div class="status-badge">
-      <div class="dot" id="statusDot"></div>
-      <span id="statusText">Checking...</span>
-    </div>
-  </div>
 
-  <!-- State 1: Setup Required -->
-  <div class="state setup-state active" id="setupState">
-    <div class="setup-title">Setup Required</div>
-    <div class="steps">
-      <div class="step">
-        <div class="step-num">1</div>
-        <div class="step-text">Download the <b>Setup Kit</b> below.</div>
-      </div>
-      <div class="step">
-        <div class="step-num">2</div>
-        <div class="step-text">Run the installer for your computer.</div>
-      </div>
-      <div class="step">
-        <div class="step-num">3</div>
-        <div class="step-text"><b>Restart Chrome</b> to activate the bridge.</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- State 2: Dashboard -->
-  <div class="state dashboard-state" id="dashboardState">
-    <div class="section-header">
-      <div class="section-title">Configuration</div>
-      <button class="tiny-action" id="resetConfigBtn">Reset DB</button>
-    </div>
-    
-    <div class="field-group">
-      <div class="field">
-        <label>Network Address</label>
-        <div class="input-row">
-          <input type="text" id="hostInput" placeholder="192.168.1.100" />
-          <input type="number" id="portInput" class="port-input" placeholder="9100" />
+    <!-- SEUP STATE -->
+    <div class="state active" id="setupState">
+      <div class="card">
+        <div class="card-title">System Setup</div>
+        <div class="step-list">
+          <div class="step-item">
+            <div class="step-indicator">1</div>
+            <div class="step-text">Download the <b>Setup Bundle</b> below.</div>
+          </div>
+          <div class="step-item">
+            <div class="step-indicator">2</div>
+            <div class="step-text">Follow the <b>Terminal Guide</b> in the bundle to link the bridge.</div>
+          </div>
+          <div class="step-item">
+            <div class="step-indicator">3</div>
+            <div class="step-text"><b>Restart Chrome</b> to power up your hardware.</div>
+          </div>
         </div>
       </div>
     </div>
 
-    <div class="actions">
-      <button class="btn-primary" id="saveBtn">Save Config</button>
-      <button class="btn-secondary" id="testBtn">Test Ping</button>
-    </div>
-
-    <div class="log-container">
-      <div class="section-header">
-        <div class="section-title">Activity Monitor</div>
-        <button class="tiny-action" id="clearLogsBtn">Clear Logs</button>
+    <!-- DASHBOARD STATE -->
+    <div class="state" id="dashboardState">
+      <div class="card">
+        <div class="activity-header">
+          <div class="card-title">Network Hub</div>
+          <button class="tiny-btn" id="resetConfigBtn">Reset Config</button>
+        </div>
+        <div class="field-row">
+          <div class="input-wrapper">
+            <label>IP Address</label>
+            <input type="text" id="hostInput" placeholder="192.168.1.100" />
+          </div>
+          <div class="input-wrapper port-input">
+            <label>Port</label>
+            <input type="number" id="portInput" placeholder="9100" />
+          </div>
+        </div>
+        <div class="field-row">
+          <button class="btn btn-primary" id="saveBtn">Save Settings</button>
+          <button class="btn btn-secondary btn-test" id="testBtn">Test Connection</button>
+        </div>
       </div>
-      <div class="log-box" id="logBox"></div>
-    </div>
-  </div>
 
-  <!-- Common Footer Actions -->
-  <div class="common-footer">
-    <div class="setup-desc" style="text-align: center; margin-bottom: 8px; font-size: 11px; opacity: 0.8;">
-      Need to download or remove the bridge?
+      <div class="card" style="margin-bottom: 0;">
+        <div class="activity-header">
+          <div class="card-title">Activity Monitor</div>
+          <button class="tiny-btn" id="clearLogsBtn">Clear</button>
+        </div>
+        <div class="log-box" id="logBox"></div>
+      </div>
     </div>
-    <button class="btn-secondary btn-block" id="downloadBtn" style="margin-bottom: 20px;">
-      Download Setup Kit
-    </button>
+
+    <div class="footer">
+      <p>Need to manage your bridge drivers?</p>
+      <button class="btn btn-secondary" id="downloadBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+        Download Setup Kit
+      </button>
+    </div>
   </div>
 
   <script src="jszip.min.js"></script>

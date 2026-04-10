@@ -1,11 +1,11 @@
 <#
-    Algonize Local TCP - Professional Windows Uninstaller
+    Algoramming Local TCP - Professional Windows Uninstaller
     Removes the hardware bridge and Chrome registration.
 #>
 
 $ErrorActionPreference = "Stop"
 $HOST_NAME = "com.algoramming.localtcp"
-$INSTALL_DIR = "$env:APPDATA\Algonize\LocalTCP"
+$INSTALL_DIR = "$env:APPDATA\Algoramming\LocalTCP"
 $REG_PATH = "HKCU:\Software\Google\Chrome\NativeMessagingHosts\$HOST_NAME"
 
 Write-Host "----------------------------------------------------" -ForegroundColor Yellow

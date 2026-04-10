@@ -1,7 +1,7 @@
 // Local TCP - background.js
 // Bridges web app messages to Native Messaging Host for raw TCP communication
 
-const HOST_NAME = 'com.algonize.localtcp';
+const HOST_NAME = 'com.algoramming.localtcp';
 let nativePort = null;
 
 // ─── Native Port Management ──────────────────────────────────────────────────

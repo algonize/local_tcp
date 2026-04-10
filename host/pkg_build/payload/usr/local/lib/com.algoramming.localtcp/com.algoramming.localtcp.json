@@ -1,9 +1,0 @@
-{
-  "name": "com.algoramming.localtcp",
-  "description": "Native host for Algonize Local TCP Printing",
-  "path": "HOST_PATH",
-  "type": "stdio",
-  "allowed_origins": [
-    "chrome-extension://lijfdehljfgjoijjamfgomoinnlooeaj/"
-  ]
-}

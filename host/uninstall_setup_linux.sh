@@ -4,7 +4,7 @@
 # Removes the hardware bridge and Chrome registration.
 
 HOST_NAME="com.algoramming.localtcp"
-INSTALL_DIR="$HOME/.local/lib/algonize/localtcp"
+INSTALL_DIR="$HOME/.local/lib/algoramming/localtcp"
 TARGET_DIR="$HOME/.config/google-chrome/NativeMessagingHosts"
 
 echo "----------------------------------------------------"

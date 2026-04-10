@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# Algonize Local TCP - Professional Linux Installer
+# Algoramming Local TCP - Professional Linux Installer
 # Registers the hardware bridge with Chrome securely.
 
 HOST_NAME="com.algoramming.localtcp"
-INSTALL_DIR="$HOME/.local/lib/algonize/localtcp"
+INSTALL_DIR="$HOME/.local/lib/algoramming/localtcp"
 TARGET_DIR="$HOME/.config/google-chrome/NativeMessagingHosts"
 
 echo "----------------------------------------------------"

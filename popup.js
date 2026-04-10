@@ -120,52 +120,42 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (platform.includes('win')) os = 'win';
     else if (platform.includes('linux')) os = 'linux';
     
-    addLog(`System: ${os.toUpperCase()}`, 'success');
-
     // 2. Define Files to fetch (from root /host folder on GitHub)
     const GITHUB_RAW = 'https://raw.githubusercontent.com/algonize/local_tcp/main/host/';
     const commonFiles = ['index.js', 'com.algoramming.localtcp.json'];
     const osFiles = {
-      mac: ['install_setup_mac.pkg', 'uninstall_setup_mac.pkg', 'guide_mac.txt'],
+      mac: ['install_setup_mac.sh', 'uninstall_setup_mac.sh', 'guide_mac.txt'],
       win: ['install_setup_windows.ps1', 'uninstall_setup_windows.ps1', 'guide_windows.txt'],
       linux: ['install_setup_linux.sh', 'uninstall_setup_linux.sh', 'guide_linux.txt']
     };
 
     const filesToFetch = [...commonFiles, ...osFiles[os]];
-    const zip = new JSZip();
 
     try {
-      addLog('Fetching latest files...', 'info');
+      addLog(`Fetching setup files for ${os}...`, 'info');
       
-      const fetchPromises = filesToFetch.map(async (file) => {
+      const zip = new JSZip();
+      
+      for (const file of filesToFetch) {
         const response = await fetch(GITHUB_RAW + file);
-        if (!response.ok) throw new Error(`Could not fetch ${file}`);
-        const content = await response.text();
-        zip.file(file, content);
-        addLog(`+ ${file}`, 'info');
-      });
+        if (!response.ok) throw new Error(`Failed to fetch ${file}`);
+        const blob = await response.blob();
+        zip.file(file, blob);
+      }
 
-      await Promise.all(fetchPromises);
-
-      addLog('Creating ZIP bundle...', 'info');
       const content = await zip.generateAsync({ type: 'blob' });
-      const blobUrl = URL.createObjectURL(content);
-
-      chrome.downloads.download({
-        url: blobUrl,
-        filename: `localtcp_bridge_${os}.zip`,
-        saveAs: false
-      }, () => {
-        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
-      });
-
-      addLog('Success: ZIP delivered.', 'success');
+      const url = URL.createObjectURL(content);
+      
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `localtcp_bridge_${os}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      
+      addLog('ZIP Downloaded! Follow guide.txt instructions.', 'success');
     } catch (err) {
-      addLog(`Build failed: ${err.message}`, 'error');
-      alert('Error fetching files from GitHub. Please check your internet connection and ensure the files are public.');
-    } finally {
-      downloadBtn.disabled = false;
-      downloadBtn.textContent = 'Download Setup Kit';
+      addLog(`Download Error: ${err.message}`, 'error');
     }
   });
 

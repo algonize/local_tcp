@@ -1,11 +1,11 @@
 <#
-    Algonize Local TCP - Professional Windows Installer
+    Algoramming Local TCP - Professional Windows Installer
     Registers the hardware bridge with Chrome securely.
 #>
 
 $ErrorActionPreference = "Stop"
 $HOST_NAME = "com.algoramming.localtcp"
-$INSTALL_DIR = "$env:APPDATA\Algonize\LocalTCP"
+$INSTALL_DIR = "$env:APPDATA\Algoramming\LocalTCP"
 $MANIFEST_NAME = "$HOST_NAME.json"
 
 Write-Host "----------------------------------------------------" -ForegroundColor Cyan

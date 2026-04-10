@@ -1,23 +1,22 @@
-Local TCP Bridge - MacOS Setup
+Local TCP Bridge - MacOS Setup (Terminal)
 -----------------------------------------
 
-1. Locate the 'install_setup_mac.pkg' file.
-2. RIGHT-CLICK the file and select 'OPEN'.
-3. A popup will appear. Click the 'OPEN' button.
-4. Follow the setup wizard to finish.
-5. IMPORTANT: Restart Chrome (Cmd+Q) after installation.
+To avoid security blocks, follow these exact steps:
 
-🛡️ WHY RIGHT-CLICK?
------------------------------------------
-Since this is an unsigned package for your local hardware, macOS 
-initially blocks it. Using "Right-Click > Open" is the official 
-Apple shortcut to trust the installer immediately.
+1. Open 'Terminal' on your Mac (Cmd + Space, then type 'Terminal').
+2. Type exactly: bash 
+   (Note: Add a SPACE after 'bash')
+3. DRAG the file 'install_setup_mac.sh' into the terminal window.
+4. Press ENTER.
+
+Success! You will see a green checkmark message.
+Restart Chrome to complete.
 
 -----------------------------------------
 🗑️ UNINSTALLATION
 -----------------------------------------
-Should you need to remove the bridge from your Mac:
-1. Locate the 'uninstall_setup_mac.pkg' file.
-2. RIGHT-CLICK the file and select 'OPEN'.
-3. Follow the steps to completely remove the bridge.
+1. Open Terminal.
+2. Type: bash 
+3. DRAG the file 'uninstall_setup_mac.sh' into the terminal.
+4. Press ENTER.
 -----------------------------------------
