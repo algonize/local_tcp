@@ -1,22 +1,25 @@
-Local TCP Bridge - MacOS Setup (Terminal)
+Local TCP Bridge - MacOS Setup (Smart Terminal)
 -----------------------------------------
 
-To avoid security blocks, follow these exact steps:
+To avoid security blocks and environment issues, do this:
 
-1. Open 'Terminal' on your Mac (Cmd + Space, then type 'Terminal').
+1. Open 'Terminal' (Cmd + Space, then type 'Terminal').
 2. Type exactly: bash 
    (Note: Add a SPACE after 'bash')
 3. DRAG the file 'install_setup_mac.sh' into the terminal window.
 4. Press ENTER.
 
-Success! You will see a green checkmark message.
-Restart Chrome to complete.
+🔍 SMART SETUP:
+The script will auto-detect your Node.js path and patch the bridge
+for Chrome stability. If successful, you will see a green checkmark.
+
+👉 IMPORTANT: Restart Chrome fully after installation.
 
 -----------------------------------------
-🗑️ UNINSTALLATION
+🛡️ SECURITY & IDENTITY
 -----------------------------------------
-1. Open Terminal.
-2. Type: bash 
-3. DRAG the file 'uninstall_setup_mac.sh' into the terminal.
-4. Press ENTER.
+This bridge is locked to the unique Extension ID:
+lijfdehljfgjoijjamfgomoinnlooeaj
+
+If your Extension ID is different, the bridge will be blocked for safety.
 -----------------------------------------
