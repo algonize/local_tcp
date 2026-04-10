@@ -19,7 +19,7 @@ for Chrome stability. If successful, you will see a green checkmark.
 🛡️ SECURITY & IDENTITY
 -----------------------------------------
 This bridge is locked to the unique Extension ID:
-lijfdehljfgjoijjamfgomoinnlooeaj
+ngbakchodnmhndnghhejmocfadjfekkf
 
 If your Extension ID is different, the bridge will be blocked for safety.
 -----------------------------------------
