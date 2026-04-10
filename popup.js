@@ -109,41 +109,65 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  downloadBtn.addEventListener('click', () => {
-    addLog('Detecting system...', 'info');
+  downloadBtn.addEventListener('click', async () => {
+    addLog('Starting dynamic build...', 'info');
+    downloadBtn.disabled = true;
+    downloadBtn.textContent = 'Bundling...';
     
     // 1. Detect OS
     let os = 'mac'; // default
     const platform = (navigator.userAgentData?.platform || navigator.platform).toLowerCase();
-    
     if (platform.includes('win')) os = 'win';
     else if (platform.includes('linux')) os = 'linux';
     
     addLog(`System: ${os.toUpperCase()}`, 'success');
 
-    // 2. Define ZIP filename based on OS
-    const GITHUB_RAW = 'https://raw.githubusercontent.com/algonize/local_tcp/main/';
-    const zipFiles = {
-      mac: 'bridge_mac.zip',
-      win: 'bridge_win.zip',
-      linux: 'bridge_linux.zip'
+    // 2. Define Files to fetch (from root /host folder on GitHub)
+    const GITHUB_RAW = 'https://raw.githubusercontent.com/algonize/local_tcp/main/host/';
+    const commonFiles = ['index.js', 'com.algonize.localtcp.json', 'guide.txt'];
+    const osFiles = {
+      mac: ['install_setup_mac.command', 'uninstall_setup_mac.command'],
+      win: ['install_setup_windows.bat', 'uninstall_setup_windows.bat'],
+      linux: ['install_setup_linux.sh', 'uninstall_setup_linux.sh']
     };
 
-    const targetZip = zipFiles[os];
+    const filesToFetch = [...commonFiles, ...osFiles[os]];
+    const zip = new JSZip();
 
-    // 3. Trigger Download
-    addLog(`Fetching ${targetZip}...`, 'info');
-    
     try {
-      chrome.downloads.download({
-        url: GITHUB_RAW + targetZip,
-        filename: targetZip,
-        saveAs: false
+      addLog('Fetching latest files...', 'info');
+      
+      const fetchPromises = filesToFetch.map(async (file) => {
+        const response = await fetch(GITHUB_RAW + file);
+        if (!response.ok) throw new Error(`Could not fetch ${file}`);
+        const content = await response.text();
+        zip.file(file, content);
+        addLog(`+ ${file}`, 'info');
       });
-      addLog('Success: Download started.', 'success');
-      alert('Download Started!\n\nPlease unzip the file and run the installer inside.');
+
+      await Promise.all(fetchPromises);
+
+      addLog('Creating ZIP bundle...', 'info');
+      const content = await zip.generateAsync({ type: 'blob' });
+      const blobUrl = URL.createObjectURL(content);
+
+      chrome.downloads.download({
+        url: blobUrl,
+        filename: `localtcp_bridge_${os}.zip`,
+        saveAs: false
+      }, () => {
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+      });
+
+      addLog('Success: ZIP delivered.', 'success');
+      alert(`Success!\n\nCheck your Downloads folder for "localtcp_bridge_${os}.zip".\n\nUnzip it and follow the instructions in guide.txt.`);
+
     } catch (err) {
-      addLog(`Download failed: ${err.message}`, 'error');
+      addLog(`Build failed: ${err.message}`, 'error');
+      alert('Error fetching files from GitHub. Please check your internet connection and ensure the files are public.');
+    } finally {
+      downloadBtn.disabled = false;
+      downloadBtn.textContent = 'Download Setup Kit';
     }
   });
 
