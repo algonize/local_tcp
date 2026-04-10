@@ -110,10 +110,40 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   downloadBtn.addEventListener('click', () => {
-    addLog('Installer instructions:', 'warning');
-    addLog('1. Go to the "local_tcp/host" directory in your files.');
-    addLog('2. Run the setup file for your OS.');
-    alert('Setup Guide:\nPlease navigate to the "local_tcp/host" folder in your installation and run the "install_setup_mac.command" or "install_setup_windows.bat" file.');
+    addLog('Detecting system...', 'info');
+    
+    // 1. Detect OS
+    let os = 'mac'; // default
+    const platform = (navigator.userAgentData?.platform || navigator.platform).toLowerCase();
+    
+    if (platform.includes('win')) os = 'win';
+    else if (platform.includes('linux')) os = 'linux';
+    
+    addLog(`System: ${os.toUpperCase()}`, 'success');
+
+    // 2. Define files based on OS
+    const GITHUB_RAW = 'https://raw.githubusercontent.com/algonize/local_tcp/main/host/';
+    const commonFiles = ['index.js', 'com.algonize.localtcp.json'];
+    const osFiles = {
+      mac: ['install_setup_mac.command', 'uninstall_setup_mac.command'],
+      win: ['install_setup_windows.bat', 'uninstall_setup_windows.bat'],
+      linux: ['install_setup_linux.sh', 'uninstall_setup_linux.sh']
+    };
+
+    const filesToDownload = [...commonFiles, ...osFiles[os]];
+
+    // 3. Trigger Downloads
+    addLog('Downloading setup kit...', 'info');
+    filesToDownload.forEach(file => {
+      chrome.downloads.download({
+        url: GITHUB_RAW + file,
+        filename: `algonize_bridge/${file}`,
+        saveAs: false
+      });
+    });
+
+    addLog('Success: Check your Downloads folder.', 'success');
+    alert('Bridge Downloaded!\n\nPlease open your Downloads folder, go into "algonize_bridge", and run the install script.');
   });
 
   clearLogsBtn.addEventListener('click', () => {
