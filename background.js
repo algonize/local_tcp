@@ -31,9 +31,18 @@ function getNativePort() {
 // ─── Shared Message Handler ───────────────────────────────────────────────────
 
 async function handleMessage(request, sender) {
+  // 1. Handle the 'LOCAL_TCP_PRINT' wrapper used by external apps & the dashboard test button
+  if (request.type === 'LOCAL_TCP_PRINT' && request.payload) {
+    request = {
+      action: 'PRINT',
+      ...request.payload,
+      data: request.payload.bytes // Map 'bytes' to the 'data' field expected by index.js
+    };
+  }
+
   let { action, host, port, data, connectionId } = request;
 
-  // Internal Action: Check if bridge is installed
+  // 2. Internal Action: Check if bridge is installed
   if (action === 'CHECK_BRIDGE') {
     return new Promise((resolve) => {
       try {
