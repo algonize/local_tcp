@@ -162,23 +162,38 @@
       transition: all 0.2s;
     }
 
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
     .btn-primary {
       background: var(--accent-primary);
       color: var(--bg-dark);
     }
-    .btn-primary:hover { transform: translateY(-1px); opacity: 0.9; }
+    .btn-primary:hover:not(:disabled) { transform: translateY(-1px); opacity: 0.9; }
 
     .btn-secondary {
       background: rgba(255, 255, 255, 0.05);
       border: 1px solid var(--border);
       color: white;
     }
-    .btn-secondary:hover { background: rgba(255, 255, 255, 0.1); }
+    .btn-secondary:hover:not(:disabled) { background: rgba(255, 255, 255, 0.1); }
 
-    .btn-test { width: auto; flex: 1; }
+    .btn-flex { flex: 1; }
+
+    /* Center Aligned Action Buttons */
+    .card-actions {
+      display: flex;
+      justify-content: center;
+      padding-top: 8px;
+    }
 
     /* Activity Monitor */
-    .activity-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .activity-header { 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center; 
+      margin-bottom: 12px; 
+    }
+    
     .log-box {
       height: 120px;
       background: rgba(0, 0, 0, 0.3);
@@ -188,7 +203,10 @@
       font-size: 11px;
       overflow-y: auto;
       border: 1px solid var(--border);
+      transition: border-color 0.3s;
     }
+
+    .log-box.active { border-color: var(--accent-primary); box-shadow: 0 0 10px rgba(93, 192, 149, 0.1); }
 
     .log-entry { margin-bottom: 6px; display: flex; gap: 8px; }
     .log-time { color: var(--text-dim); }
@@ -219,8 +237,20 @@
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
 
-    .tiny-btn { background: none; border: none; color: var(--accent-primary); font-size: 11px; cursor: pointer; padding: 0;}
-    .tiny-btn:hover { text-decoration: underline; }
+    /* Centered Tiny Buttons */
+    .centered-action {
+      display: flex;
+      justify-content: center;
+      margin-top: 12px;
+    }
+
+    .tiny-btn { background: none; border: none; color: var(--accent-primary); font-size: 11px; cursor: pointer; padding: 4px 8px; border-radius: 4px; transition: background 0.2s;}
+    .tiny-btn:hover { background: rgba(93, 192, 149, 0.1); text-decoration: underline; }
+
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+    .spinner { animation: spin 1s linear infinite; display: none; }
+    .btn.loading .spinner { display: inline-block; }
+    .btn.loading .btn-text { display: none; }
   </style>
 </head>
 <body>
@@ -264,7 +294,6 @@
       <div class="card">
         <div class="activity-header">
           <div class="card-title">Network Hub</div>
-          <button class="tiny-btn" id="resetConfigBtn">Reset Config</button>
         </div>
         <div class="field-row">
           <div class="input-wrapper">
@@ -277,17 +306,28 @@
           </div>
         </div>
         <div class="field-row">
-          <button class="btn btn-primary" id="saveBtn">Save Settings</button>
-          <button class="btn btn-secondary btn-test" id="testBtn">Test Connection</button>
+          <button class="btn btn-primary btn-flex" id="saveBtn">
+            <svg class="spinner" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>
+            <span class="btn-text">Save Settings</span>
+          </button>
+          <button class="btn btn-secondary btn-flex" id="testBtn">
+            <svg class="spinner" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>
+            <span class="btn-text">Test Connection</span>
+          </button>
+        </div>
+        <div class="centered-action">
+          <button class="tiny-btn" id="resetConfigBtn">Reset Config</button>
         </div>
       </div>
 
       <div class="card" style="margin-bottom: 0;">
         <div class="activity-header">
           <div class="card-title">Activity Monitor</div>
-          <button class="tiny-btn" id="clearLogsBtn">Clear</button>
         </div>
         <div class="log-box" id="logBox"></div>
+        <div class="centered-action">
+          <button class="tiny-btn" id="clearLogsBtn">Clear Logs</button>
+        </div>
       </div>
     </div>
 

@@ -49,24 +49,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // 3. Logging Helper
-  function addLog(message, type = 'info') {
+  function addLog(msg, type = 'info') {
     const entry = document.createElement('div');
     entry.className = 'log-entry';
-    
-    const time = document.createElement('span');
-    time.className = 'log-time';
-    time.textContent = new Date().toLocaleTimeString([], { hour12: false });
-    
-    const msg = document.createElement('span');
-    msg.className = `log-msg ${type}`;
-    msg.textContent = message;
-    
-    entry.appendChild(time);
-    entry.appendChild(msg);
-    logBox.prepend(entry);
-    
-    // Limit logs
-    if (logBox.children.length > 50) logBox.removeChild(logBox.lastChild);
+    const time = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    entry.innerHTML = `<span class="log-time">[${time}]</span> <span class="log-msg ${type}">${msg}</span>`;
+    logBox.appendChild(entry);
+    logBox.scrollTop = logBox.scrollHeight;
+
+    // Visual pulse effect
+    logBox.classList.add('active');
+    setTimeout(() => logBox.classList.remove('active'), 500);
   }
 
   // Initial check
@@ -77,36 +70,54 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   saveBtn.addEventListener('click', async () => {
     const host = hostInput.value.trim();
-    const port = portInput.value.trim();
-    if (!host || !port) return addLog('Host and Port required.', 'error');
-    
-    await chrome.storage.local.set({ printerHost: host, printerPort: port });
-    addLog(`Config saved: ${host}:${port}`, 'success');
+    const port = parseInt(portInput.value.trim());
+
+    if (!host || !port) {
+      addLog('Error: Host and Port are required.', 'error');
+      return;
+    }
+
+    saveBtn.classList.add('loading');
+    saveBtn.disabled = true;
+
+    chrome.storage.local.set({ host, port }, () => {
+      setTimeout(() => {
+        saveBtn.classList.remove('loading');
+        saveBtn.disabled = false;
+        addLog('Configuration saved locally.', 'success');
+      }, 300);
+    });
   });
 
-  testBtn.addEventListener('click', async () => {
+  testBtn.addEventListener('click', () => {
     const host = hostInput.value.trim();
-    const port = portInput.value.trim();
-    if (!host || !port) return addLog('Host/Port missing.', 'error');
+    const port = parseInt(portInput.value.trim());
 
-    testBtn.disabled = true;
-    testBtn.textContent = 'Pinging...';
-    try {
-      chrome.runtime.sendMessage({ action: 'CONNECT', host, port }, (res) => {
-        if (res && res.success) {
-          addLog(`Success: ${res.message}`, 'success');
-          chrome.runtime.sendMessage({ action: 'DISCONNECT' });
-        } else {
-          addLog(`Error: ${res?.error || 'Unknown error'}`, 'error');
-        }
-        testBtn.disabled = false;
-        testBtn.textContent = 'Test Ping';
-      });
-    } catch (e) {
-      addLog(`Failed: ${e.message}`, 'error');
-      testBtn.disabled = false;
-      testBtn.textContent = 'Test Ping';
+    if (!host || !port) {
+      addLog('Error: Set config before testing.', 'error');
+      return;
     }
+
+    testBtn.classList.add('loading');
+    testBtn.disabled = true;
+
+    addLog(`Testing connection to ${host}:${port}...`, 'info');
+    
+    chrome.runtime.sendMessage({
+      type: 'LOCAL_TCP_PRINT',
+      payload: { host, port, bytes: [0x10, 0x04, 0x01] } // DLE EOT 1: Real-time status request
+    }, (response) => {
+      testBtn.classList.remove('loading');
+      testBtn.disabled = false;
+      
+      if (chrome.runtime.lastError) {
+        addLog(`System Error: ${chrome.runtime.lastError.message}`, 'error');
+      } else if (response && response.success) {
+        addLog('Success: Bridge reached hardware!', 'success');
+      } else {
+        addLog(`Failed: ${response?.error || 'Unknown error'}`, 'error');
+      }
+    }); // Fixed closing
   });
 
   downloadBtn.addEventListener('click', async () => {
@@ -133,6 +144,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     try {
       addLog(`Fetching setup files for ${os}...`, 'info');
+      downloadBtn.classList.add('loading');
+      downloadBtn.disabled = true;
       
       const zip = new JSZip();
       
@@ -156,6 +169,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       addLog('ZIP Downloaded! Follow guide.txt instructions.', 'success');
     } catch (err) {
       addLog(`Download Error: ${err.message}`, 'error');
+    } finally {
+      downloadBtn.classList.remove('loading');
+      downloadBtn.disabled = false;
     }
   });
 
