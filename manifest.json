@@ -6,8 +6,7 @@
   "description": "Your browser can finally talk with local TCP.",
   "permissions": [
     "storage",
-    "nativeMessaging",
-    "downloads"
+    "nativeMessaging"
   ],
   "host_permissions": [],
   "background": {
