@@ -6,7 +6,6 @@
 # 0. Self-Elevation and Execution Policy Bypass
 if (-Not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] 'Administrator')) {
     if ($PSParentPath) {
-        # Running as a script file
         $arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
         Start-Process -FilePath PowerShell.exe -Verb Runas -ArgumentList $arguments
         Exit
@@ -19,27 +18,25 @@ $INSTALL_DIR = "$env:APPDATA\Algoramming\LocalTCP"
 $MANIFEST_NAME = "$HOST_NAME.json"
 
 function Ensure-NodeInstalled {
-    Write-Host "🔍 Detecting Node.js environment..." -ForegroundColor Gray
+    Write-Host "[WAIT] Detecting Node.js environment..." -ForegroundColor Gray
     $NODE_PATH = (Get-Command node -ErrorAction SilentlyContinue).Source
 
-    if (!$NODE_PATH) {
-        Write-Host "⚠️ Node.js not found. Attempting automatic installation..." -ForegroundColor Yellow
+    if (-not $NODE_PATH) {
+        Write-Host "[WARN] Node.js not found. Attempting automatic installation..." -ForegroundColor Yellow
         
-        # Check if winget is available
         if (Get-Command winget -ErrorAction SilentlyContinue) {
-            Write-Host "📦 Found Winget. Installing Node.js LTS..." -ForegroundColor Cyan
+            Write-Host "[INFO] Found Winget. Installing Node.js LTS..." -ForegroundColor Cyan
             winget install OpenJS.NodeJS.LTS --silent --accept-package-agreements --accept-source-agreements
             
             if ($LASTEXITCODE -ne 0) {
                 throw "Winget failed to install Node.js. Please install it manually from https://nodejs.org/"
             }
 
-            # Refresh Environment Path for the current session
-            Write-Host "🔄 Refreshing system path..." -ForegroundColor Gray
+            Write-Host "[INFO] Refreshing system path..." -ForegroundColor Gray
             $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
             
             $NODE_PATH = (Get-Command node -ErrorAction SilentlyContinue).Source
-            if (!$NODE_PATH) {
+            if (-not $NODE_PATH) {
                 throw "Node.js installation completed but 'node' is still not found in path. Please restart your computer."
             }
         } else {
@@ -52,34 +49,34 @@ function Ensure-NodeInstalled {
 function Run-Installer {
     try {
         Write-Host "----------------------------------------------------" -ForegroundColor Cyan
-        Write-Host "🚀 Local TCP Bridge - Smart Installer (Windows)" -ForegroundColor Cyan
+        Write-Host "Local TCP Bridge - Smart Installer (Windows)" -ForegroundColor Cyan
         Write-Host "----------------------------------------------------" -ForegroundColor Cyan
 
         # 1. Ensure Node is present
         $NODE_PATH = Ensure-NodeInstalled
-        Write-Host "📍 Using Node at: $NODE_PATH" -ForegroundColor Green
+        Write-Host "[OK] Using Node at: $NODE_PATH" -ForegroundColor Green
 
         # 2. Create installation directory
-        if (!(Test-Path $INSTALL_DIR)) {
-            Write-Host "📁 Creating directory: $INSTALL_DIR" -ForegroundColor Gray
+        if (-not (Test-Path $INSTALL_DIR)) {
+            Write-Host "[INFO] Creating directory: $INSTALL_DIR" -ForegroundColor Gray
             New-Item -ItemType Directory -Force -Path $INSTALL_DIR | Out-Null
         }
 
         # 3. Copy files
-        Write-Host "📂 Installing files..." -ForegroundColor Gray
+        Write-Host "[INFO] Installing files..." -ForegroundColor Gray
         Copy-Item "$PSScriptRoot\index.js" -Destination "$INSTALL_DIR\index.js" -Force
         Copy-Item "$PSScriptRoot\$MANIFEST_NAME" -Destination "$INSTALL_DIR\$MANIFEST_NAME" -Force
 
         # 4. Create robust .bat launcher
-        Write-Host "🔧 Creating execution launcher..." -ForegroundColor Gray
+        Write-Host "[INFO] Creating execution launcher..." -ForegroundColor Gray
         $BAT_PATH = "$INSTALL_DIR\run_bridge.bat"
         $BAT_CONTENT = "@echo off`r`n`"$NODE_PATH`" `"%~dp0index.js`" %*"
         $BAT_CONTENT | Out-File -FilePath $BAT_PATH -Encoding UTF8
 
         # 5. Register with Chrome
-        Write-Host "🔗 Registering with Chrome..." -ForegroundColor Gray
+        Write-Host "[INFO] Registering with Chrome..." -ForegroundColor Gray
         $REG_PATH = "HKCU:\Software\Google\Chrome\NativeMessagingHosts\$HOST_NAME"
-        if (!(Test-Path $REG_PATH)) {
+        if (-not (Test-Path $REG_PATH)) {
             New-Item -Path $REG_PATH -Force | Out-Null
         }
 
@@ -93,7 +90,7 @@ function Run-Installer {
         Set-ItemProperty -Path $REG_PATH -Name "(default)" -Value "$INSTALL_DIR\$MANIFEST_NAME"
 
         Write-Host ""
-        Write-Host "✅ Bridge installed successfully!" -ForegroundColor Green
+        Write-Host "[SUCCESS] Bridge installed successfully!" -ForegroundColor Green
         Write-Host "----------------------------------------------------"
         Write-Host "IMPORTANT: Please restart Chrome to apply changes."
         Write-Host "----------------------------------------------------"
@@ -101,7 +98,7 @@ function Run-Installer {
     }
     catch {
         Write-Host ""
-        Write-Host "❌ ERROR: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "[ERROR] $($_.Exception.Message)" -ForegroundColor Red
         Write-Host "----------------------------------------------------"
         Write-Host "If issues persist, visit: https://nodejs.org/ to install Node manually."
         Write-Host "----------------------------------------------------"
