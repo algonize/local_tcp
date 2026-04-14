@@ -3,6 +3,16 @@
     Registers the hardware bridge with Chrome securely.
 #>
 
+# 0. Self-Elevation and Execution Policy Bypass
+if (-Not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] 'Administrator')) {
+    if ($PSParentPath) {
+        # Running as a script file
+        $arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
+        Start-Process -FilePath PowerShell.exe -Verb Runas -ArgumentList $arguments
+        Exit
+    }
+}
+
 $ErrorActionPreference = "Stop"
 $HOST_NAME = "com.algoramming.localtcp"
 $INSTALL_DIR = "$env:APPDATA\Algoramming\LocalTCP"

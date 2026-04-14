@@ -3,6 +3,15 @@
     Removes the hardware bridge and Chrome registration.
 #>
 
+# 0. Self-Elevation and Execution Policy Bypass
+if (-Not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] 'Administrator')) {
+    if ($PSParentPath) {
+        $arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
+        Start-Process -FilePath PowerShell.exe -Verb Runas -ArgumentList $arguments
+        Exit
+    }
+}
+
 $ErrorActionPreference = "Stop"
 $HOST_NAME = "com.algoramming.localtcp"
 $INSTALL_DIR = "$env:APPDATA\Algoramming\LocalTCP"
