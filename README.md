@@ -63,10 +63,23 @@ Integrating Local TCP into your web application is trivial. The bridge listens f
 }
 ```
 
+---
+
+## 📦 Flutter Integration
+
+While you can use the raw API, we recommend using the dedicated Flutter package for a high-level, type-safe experience.
+
+### flutter_esc_pos_network_universal
+This package is a drop-in replacement for the original network printing package, adding seamless support for Flutter Web via this bridge.
+
+**Pub.dev**: [flutter_esc_pos_network_universal](https://pub.dev/packages/flutter_esc_pos_network_universal)  
+**GitHub**: `https://github.com/algonize/local_tcp`
+
 ### Flutter Web Example
 ```dart
 import 'dart:html' as html;
 
+// If using the raw bridge API:
 void printToHardware(String ip, int port, List<int> bytes) {
   html.window.postMessage({
     'type': 'LOCAL_TCP_PRINT',
@@ -78,6 +91,8 @@ void printToHardware(String ip, int port, List<int> bytes) {
   }, '*');
 }
 ```
+
+---
 
 ---
 
