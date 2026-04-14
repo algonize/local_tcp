@@ -46,6 +46,12 @@ function Ensure-NodeInstalled {
     return $NODE_PATH
 }
 
+function Save-Utf8NoBom {
+    param([string]$Path, [string]$Content)
+    $Utf8NoBom = New-Object System.Text.UTF8Encoding $False
+    [System.IO.File]::WriteAllText($Path, $Content, $Utf8NoBom)
+}
+
 function Run-Installer {
     try {
         Write-Host "----------------------------------------------------" -ForegroundColor Cyan
@@ -71,7 +77,7 @@ function Run-Installer {
         Write-Host "[INFO] Creating execution launcher..." -ForegroundColor Gray
         $BAT_PATH = "$INSTALL_DIR\run_bridge.bat"
         $BAT_CONTENT = "@echo off`r`n`"$NODE_PATH`" `"%~dp0index.js`" %*"
-        $BAT_CONTENT | Out-File -FilePath $BAT_PATH -Encoding UTF8
+        Save-Utf8NoBom -Path $BAT_PATH -Content $BAT_CONTENT
 
         # 5. Register with Chrome
         Write-Host "[INFO] Registering with Chrome..." -ForegroundColor Gray
@@ -80,11 +86,11 @@ function Run-Installer {
             New-Item -Path $REG_PATH -Force | Out-Null
         }
 
-        # Update the manifest
+        # Update the manifest (No BOM is CRITICAL here)
         $MANIFEST_CONTENT = Get-Content "$INSTALL_DIR\$MANIFEST_NAME" -Raw
         $ESCAPED_BAT_PATH = $BAT_PATH.Replace("\", "\\")
         $MANIFEST_CONTENT = $MANIFEST_CONTENT -replace "HOST_PATH", $ESCAPED_BAT_PATH
-        $MANIFEST_CONTENT | Out-File -FilePath "$INSTALL_DIR\$MANIFEST_NAME" -Encoding UTF8
+        Save-Utf8NoBom -Path "$INSTALL_DIR\$MANIFEST_NAME" -Content $MANIFEST_CONTENT
 
         # Set Registry Key
         Set-ItemProperty -Path $REG_PATH -Name "(default)" -Value "$INSTALL_DIR\$MANIFEST_NAME"
@@ -92,7 +98,9 @@ function Run-Installer {
         Write-Host ""
         Write-Host "[SUCCESS] Bridge installed successfully!" -ForegroundColor Green
         Write-Host "----------------------------------------------------"
-        Write-Host "IMPORTANT: Please restart Chrome to apply changes."
+        Write-Host "1. Please RESTART Chrome completely."
+        Write-Host "2. Ensure Extension ID matches: ngbakchodnmhndnghhejmocfadjfekkf"
+        Write-Host "3. If ID is different, update manifest JSON accordingly."
         Write-Host "----------------------------------------------------"
         Pause
     }
