@@ -1,50 +1,90 @@
 #!/bin/bash
 
-# Algoramming Local TCP - Professional Linux Installer
-# Registers the hardware bridge with Chrome securely.
+# Local TCP Bridge - Smart Linux Installer
+# Registers the bridge with Chrome and ensures Node.js is ready.
+
+set -e
 
 HOST_NAME="com.algoramming.localtcp"
 INSTALL_DIR="$HOME/.local/lib/algoramming/localtcp"
 TARGET_DIR="$HOME/.config/google-chrome/NativeMessagingHosts"
 
-echo "----------------------------------------------------"
-echo "🚀 Local TCP Bridge - Setup (Linux)"
-echo "----------------------------------------------------"
+# Colors for professional output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m'
 
-# 1. Detect Node Path
-echo "🔍 Detecting Node.js environment..."
-NODE_PATH=$(command -v node)
-
-if [ -z "$NODE_PATH" ]; then
-    echo -e "\033[1;31m❌ Error: Node.js was not found in your Terminal path.\033[0m"
-    echo "Please install Node.js and try again."
+error_handler() {
+    echo -e "\n${RED}❌ ERROR: Installation failed at line $1${NC}"
+    echo -e "${YELLOW}Troubleshooting:${NC}"
+    echo "1. Ensure you have an active internet connection."
+    echo "2. Visit https://nodejs.org/ to install Node.js manually if auto-install fails."
     exit 1
-fi
+}
 
-echo -e "📍 Found Node at: \033[1;32m$NODE_PATH\033[0m"
+trap 'error_handler $LINENO' ERR
 
-# 2. Create directories
-mkdir -p "$INSTALL_DIR"
-mkdir -p "$TARGET_DIR"
+ensure_node_installed() {
+    echo -e "🔍 Detecting Node.js environment..."
+    if ! command -v node &> /dev/null; then
+        echo -e "${YELLOW}⚠️ Node.js not found. Attempting automatic installation...${NC}"
+        
+        if command -v apt-get &> /dev/null; then
+            echo -e "${CYAN}📦 Found apt. Installing Node.js...${NC}"
+            sudo apt-get update && sudo apt-get install -y nodejs npm
+        elif command -v dnf &> /dev/null; then
+            echo -e "${CYAN}📦 Found dnf. Installing Node.js...${NC}"
+            sudo dnf install -y nodejs
+        elif command -v pacman &> /dev/null; then
+            echo -e "${CYAN}📦 Found pacman. Installing Node.js...${NC}"
+            sudo pacman -S --noconfirm nodejs npm
+        else
+            echo -e "${RED}❌ Error: Node.js is missing and no supported package manager found.${NC}"
+            echo "Please install Node.js manually: https://nodejs.org/"
+            exit 1
+        fi
+    fi
+    echo -e "📍 Found Node at: ${GREEN}$(command -v node)${NC}"
+}
 
-# 3. Get the directory where the script is located
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+run_installer() {
+    echo -e "${BLUE}--------------------------------------------------${NC}"
+    echo -e "${CYAN}           🚀 Local TCP Bridge - Smart Setup      ${NC}"
+    echo -e "${BLUE}--------------------------------------------------${NC}"
 
-# 4. Copy files
-echo "📂 Installing files to: $INSTALL_DIR"
-cp "$SCRIPT_DIR/index.js" "$INSTALL_DIR/"
-cp "$SCRIPT_DIR/$HOST_NAME.json" "$INSTALL_DIR/"
+    # 1. Ensure Node is present
+    ensure_node_installed
+    NODE_PATH=$(command -v node)
 
-# 5. Patch Shebang with Absolute Path
-echo "🔧 Patching execution path for Chrome stability..."
-sed -i "1s|.*|#!$NODE_PATH|" "$INSTALL_DIR/index.js"
-chmod +x "$INSTALL_DIR/index.js"
+    # 2. Create directories
+    echo "📁 Creating application directories..."
+    mkdir -p "$INSTALL_DIR"
+    mkdir -p "$TARGET_DIR"
 
-# 6. Generate manifest
-sed "s|HOST_PATH|$INSTALL_DIR/index.js|g" "$INSTALL_DIR/$HOST_NAME.json" > "$TARGET_DIR/$HOST_NAME.json"
+    # 3. Get the directory where the script is located
+    SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-echo "✅ Bridge installed successfully!"
-echo "📍 Location: $INSTALL_DIR"
-echo ""
-echo "👉 Please restart Chrome to complete the setup."
-echo "----------------------------------------------------"
+    # 4. Copy files
+    echo "📂 Installing bridge files..."
+    cp "$SCRIPT_DIR/index.js" "$INSTALL_DIR/"
+    cp "$SCRIPT_DIR/$HOST_NAME.json" "$INSTALL_DIR/"
+
+    # 5. Patch Shebang with Absolute Path
+    echo "🔧 Patching execution path for stability..."
+    # Linux sed -i is straightforward
+    sed -i "1s|.*|#!$NODE_PATH|" "$INSTALL_DIR/index.js"
+    chmod +x "$INSTALL_DIR/index.js"
+
+    # 6. Generate manifest
+    sed "s|HOST_PATH|$INSTALL_DIR/index.js|g" "$INSTALL_DIR/$HOST_NAME.json" > "$TARGET_DIR/$HOST_NAME.json"
+
+    echo -e "\n${GREEN}✅ Bridge installed successfully!${NC}"
+    echo -e "📍 Location: $INSTALL_DIR"
+    echo -e "${YELLOW}👉 IMPORTANT: Please restart Chrome fully to complete setup.${NC}"
+    echo -e "${BLUE}--------------------------------------------------${NC}"
+}
+
+run_installer

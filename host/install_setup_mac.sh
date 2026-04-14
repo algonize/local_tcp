@@ -1,51 +1,84 @@
 #!/bin/bash
 
-# Local TCP Bridge - Professional Mac Installer (Smart Edition)
-# This script registers the bridge with Chrome and auto-detects your Node path.
+# Local TCP Bridge - Smart Mac Installer
+# Registers the bridge with Chrome and ensures Node.js is ready.
+
+set -e
 
 HOST_NAME="com.algoramming.localtcp"
 INSTALL_DIR="$HOME/Library/Application Support/LocalTCP"
 TARGET_DIR="$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts"
 
-clear
-echo -e "\033[1;34m--------------------------------------------------\033[0m"
-echo -e "\033[1;36m           🚀 Local TCP Bridge Setup             \033[0m"
-echo -e "\033[1;34m--------------------------------------------------\033[0m"
+# Colors for professional output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m'
 
-# 1. Detect Node Path
-echo "🔍 Detecting Node.js environment..."
-NODE_PATH=$(command -v node)
-
-if [ -z "$NODE_PATH" ]; then
-    echo -e "\033[1;31m❌ Error: Node.js was not found in your Terminal path.\033[0m"
-    echo "Please ensure Node is installed and try again."
+error_handler() {
+    echo -e "\n${RED}❌ ERROR: Installation failed at line $1${NC}"
+    echo -e "${YELLOW}Troubleshooting:${NC}"
+    echo "1. Ensure you have an active internet connection."
+    echo "2. Visit https://nodejs.org/ to install Node.js manually if auto-install fails."
     exit 1
-fi
+}
 
-echo -e "📍 Found Node at: \033[1;32m$NODE_PATH\033[0m"
+trap 'error_handler $LINENO' ERR
 
-# 2. Create directories
-mkdir -p "$INSTALL_DIR"
-mkdir -p "$TARGET_DIR"
+ensure_node_installed() {
+    echo -e "🔍 Detecting Node.js environment..."
+    if ! command -v node &> /dev/null; then
+        echo -e "${YELLOW}⚠️ Node.js not found. Attempting automatic installation...${NC}"
+        
+        if command -v brew &> /dev/null; then
+            echo -e "${CYAN}📦 Found Homebrew. Installing Node.js...${NC}"
+            brew install node
+        else
+            echo -e "${RED}❌ Error: Node.js is missing and Homebrew was not found.${NC}"
+            echo "Please install Node.js from https://nodejs.org/ and try again."
+            exit 1
+        fi
+    fi
+    echo -e "📍 Found Node at: ${GREEN}$(command -v node)${NC}"
+}
 
-# 3. Get the directory where the script is located
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+run_installer() {
+    clear
+    echo -e "${BLUE}--------------------------------------------------${NC}"
+    echo -e "${CYAN}           🚀 Local TCP Bridge - Smart Setup      ${NC}"
+    echo -e "${BLUE}--------------------------------------------------${NC}"
 
-# 4. Copy files
-echo "📂 Installing files to: $INSTALL_DIR"
-cp "$SCRIPT_DIR/index.js" "$INSTALL_DIR/"
-cp "$SCRIPT_DIR/$HOST_NAME.json" "$INSTALL_DIR/"
+    # 1. Ensure Node is present
+    ensure_node_installed
+    NODE_PATH=$(command -v node)
 
-# 5. Patch Shebang with Absolute Path (The most reliable fix for Chrome)
-echo "🔧 Patching execution path for Chrome stability..."
-sed -i '' "1s|.*|#!$NODE_PATH|" "$INSTALL_DIR/index.js"
-chmod +x "$INSTALL_DIR/index.js"
+    # 2. Create directories
+    echo "📁 Creating application directories..."
+    mkdir -p "$INSTALL_DIR"
+    mkdir -p "$TARGET_DIR"
 
-# 6. Generate manifest with absolute path
-sed "s|HOST_PATH|$INSTALL_DIR/index.js|g" "$INSTALL_DIR/$HOST_NAME.json" > "$TARGET_DIR/$HOST_NAME.json"
+    # 3. Get the directory where the script is located
+    SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-echo -e "\033[1;32m✅ Bridge installed successfully!\033[0m"
-echo ""
-echo -e "\033[1;33m👉 IMPORTANT: Please restart Chrome fully to activate.\033[0m"
-echo "If still not linked, check that your Extension ID matches what's in guide.txt."
-echo -e "\033[1;34m--------------------------------------------------\033[0m"
+    # 4. Copy files
+    echo "📂 Installing bridge files..."
+    cp "$SCRIPT_DIR/index.js" "$INSTALL_DIR/"
+    cp "$SCRIPT_DIR/$HOST_NAME.json" "$INSTALL_DIR/"
+
+    # 5. Patch Shebang with Absolute Path
+    echo "🔧 Patching execution path for stability..."
+    # On Mac, sed -i '' is required
+    sed -i '' "1s|.*|#!$NODE_PATH|" "$INSTALL_DIR/index.js"
+    chmod +x "$INSTALL_DIR/index.js"
+
+    # 6. Generate manifest with absolute path
+    sed "s|HOST_PATH|$INSTALL_DIR/index.js|g" "$INSTALL_DIR/$HOST_NAME.json" > "$TARGET_DIR/$HOST_NAME.json"
+
+    echo -e "\n${GREEN}✅ Bridge installed successfully!${NC}"
+    echo -e "${YELLOW}👉 IMPORTANT: Please restart Chrome fully to activate.${NC}"
+    echo -e "${BLUE}--------------------------------------------------${NC}"
+}
+
+run_installer

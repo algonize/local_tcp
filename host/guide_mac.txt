@@ -5,13 +5,12 @@ To avoid security blocks and environment issues, do this:
 
 1. Open 'Terminal' (Cmd + Space, then type 'Terminal').
 2. Type exactly: bash 
-   (Note: Add a SPACE after 'bash')
-3. DRAG the file 'install_setup_mac.sh' into the terminal window.
-4. Press ENTER.
+3. DRAG the file 'install_setup_mac.sh' into the terminal window and press ENTER.
 
 🔍 SMART SETUP:
-The script will auto-detect your Node.js path and patch the bridge
-for Chrome stability. If successful, you will see a green checkmark.
+- **Auto-Detection**: Finds your Node.js path automatically.
+- **Auto-Install**: If Node is missing, it will attempt to install it via Homebrew.
+- **Chrome Stability**: Patches the bridge to ensure it runs correctly on MacOS.
 
 👉 IMPORTANT: Restart Chrome fully after installation.
 

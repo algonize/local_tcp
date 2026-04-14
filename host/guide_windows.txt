@@ -2,8 +2,25 @@ Local TCP Bridge - Windows Setup
 -----------------------------------------
 
 1. Right-click 'install_setup_windows.ps1' and select 'Run with PowerShell'.
-2. If prompt appears, select 'Yes' to allow the script.
-3. IMPORTANT: Restart Chrome after the installation window closes.
+2. The "Smart Setup" will auto-detect Node.js or install it via Winget.
+3. If prompt appears, select 'Yes' or 'Run Once' to allow the script.
+4. IMPORTANT: Restart Chrome after the installation window closes.
+
+-----------------------------------------
+📂 TROUBLESHOOTING
+-----------------------------------------
+If the window closes immediately or shows an error:
+
+1. **Execution Policy**: PowerShell might block scripts by default. 
+   - Open PowerShell as Administrator.
+   - Run: `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`
+   - Try the installer again.
+
+2. **Node.js**: Ensure Node.js is installed (https://nodejs.org/).
+   - Open Command Prompt and type `node -v`. 
+   - If it says 'not recognized', you need to install it.
+
+3. **Permissions**: If you get 'Access Denied', try right-clicking the script and ensuring it's not 'Blocked' in File Properties (General tab).
 
 -----------------------------------------
 🗑️ UNINSTALLATION

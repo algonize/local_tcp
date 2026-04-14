@@ -2,8 +2,8 @@ Local TCP Bridge - Linux Setup
 -----------------------------------------
 
 1. Open a terminal in this folder.
-2. Run: bash install_setup_linux.sh
-3. The script will register the bridge with Chrome automatically.
+2. Run: `bash install_setup_linux.sh`
+3. The "Smart Setup" will auto-detect or install Node.js (Ubuntu/Fedora/Arch).
 4. IMPORTANT: Restart Chrome after the installation finishes.
 
 -----------------------------------------
