@@ -275,11 +275,11 @@
         <div class="step-list">
           <div class="step-item">
             <div class="step-indicator">1</div>
-            <div class="step-text">Download the <b>Setup Bundle</b> below.</div>
+            <div class="step-text">Download the <b>One-Click Installer</b> below.</div>
           </div>
           <div class="step-item">
             <div class="step-indicator">2</div>
-            <div class="step-text">Follow the <b>Terminal Guide</b> in the bundle to link the bridge.</div>
+            <div class="step-text"><b>Double-click</b> the installer. No terminal needed.</div>
           </div>
           <div class="step-item">
             <div class="step-indicator">3</div>
@@ -320,6 +320,20 @@
         </div>
       </div>
 
+      <div class="card">
+        <div class="activity-header">
+          <div class="card-title">Security — Allowed Origins</div>
+        </div>
+        <div class="input-wrapper">
+          <label>One origin per line (empty = allow all websites)</label>
+          <textarea id="originsInput" rows="3" placeholder="https://app.algoramming.com&#10;http://localhost:3000"
+            style="width:100%; background:rgba(15,23,42,0.6); border:1px solid var(--border); border-radius:8px; color:var(--text-main); font-family:inherit; font-size:12px; padding:10px; resize:vertical; outline:none;"></textarea>
+        </div>
+        <div class="centered-action" style="margin-top:8px;">
+          <button class="tiny-btn" id="saveOriginsBtn">Save Allowlist</button>
+        </div>
+      </div>
+
       <div class="card" style="margin-bottom: 0;">
         <div class="activity-header">
           <div class="card-title">Activity Monitor</div>
@@ -340,7 +354,6 @@
     </div>
   </div>
 
-  <script src="jszip.min.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

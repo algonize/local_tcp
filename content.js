@@ -1,8 +1,9 @@
 // Local TCP - content.js
-// Bridges standard web page `window.postMessage` directly to the Chrome native background socket API.
+// Bridges standard web page `window.postMessage` to the extension background.
+// Responses are posted back to the page's own origin (no '*' wildcard).
 
 window.addEventListener('message', (event) => {
-  // 1. Validate the origin of the message
+  // 1. Only accept messages from this page itself
   if (event.source !== window || !event.data || event.data.source !== 'localtcp_req') {
     return;
   }
@@ -13,13 +14,14 @@ window.addEventListener('message', (event) => {
   delete payload.source;
   delete payload.messageId;
 
-  // 3. Send securely to the internal background script
+  // 3. Send to the background (sender origin is attached automatically by
+  //    Chrome, which the background uses for the origin allowlist check)
   chrome.runtime.sendMessage(payload, (response) => {
-    // 4. Return the result back to the same webpage utilizing a matching messageId
+    // 4. Return the result back to the same page, scoped to its origin
     window.postMessage({
       source: 'localtcp_res',
       messageId: messageId,
       response: response || { success: false, error: chrome.runtime.lastError?.message || 'Unknown error' }
-    }, '*');
+    }, window.location.origin);
   });
 });

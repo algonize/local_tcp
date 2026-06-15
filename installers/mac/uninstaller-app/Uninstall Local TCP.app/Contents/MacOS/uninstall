@@ -1,0 +1,30 @@
+#!/bin/bash
+# Uninstall Local TCP.app — double-click uninstaller for macOS
+# Shows the native macOS admin password dialog, removes everything
+# (including this app itself), then confirms with a dialog.
+
+HOST_NAME="com.algoramming.localtcp"
+
+# 1. Ask for confirmation
+CONFIRM=$(osascript -e 'display dialog "Remove Local TCP Bridge from this Mac?" buttons {"Cancel", "Uninstall"} default button "Uninstall" with icon caution' 2>/dev/null)
+if [[ "$CONFIRM" != *"Uninstall"* ]]; then
+  exit 0
+fi
+
+# 2. Remove everything with admin privileges (native password prompt)
+osascript -e 'do shell script "
+  rm -rf \"/Library/Application Support/LocalTCP\";
+  rm -f \"/Library/Google/Chrome/NativeMessagingHosts/com.algoramming.localtcp.json\";
+  rm -f \"/Library/Microsoft/Edge/NativeMessagingHosts/com.algoramming.localtcp.json\";
+  pkgutil --forget com.algoramming.localtcp.bridge >/dev/null 2>&1 || true;
+  rm -rf \"/Applications/Uninstall Local TCP.app\"
+" with administrator privileges' 2>/dev/null
+
+if [[ $? -ne 0 ]]; then
+  # User cancelled the password prompt
+  exit 0
+fi
+
+# 3. Confirmation
+osascript -e 'display dialog "Local TCP Bridge has been removed.\n\nPlease restart Chrome. You can also remove the extension from chrome://extensions." buttons {"Done"} default button "Done" with icon note' 2>/dev/null
+exit 0

@@ -1,17 +1,27 @@
 // Local TCP - popup.js
-// Handles configuration, UI states, and bridge status
+// Handles configuration, UI states, bridge status, and the security allowlist.
+// The Setup Kit button downloads a one-click installer from GitHub Releases.
+
+const RELEASE_BASE = 'https://github.com/algonize/local_tcp/releases/latest/download/';
+const INSTALLER_ASSETS = {
+  win: 'LocalTCP-Setup-Windows.exe',
+  mac: 'LocalTCP-Setup-Mac.pkg',
+  linux: 'localtcp-linux-installer.run'
+};
 
 document.addEventListener('DOMContentLoaded', async () => {
   const setupState = document.getElementById('setupState');
   const dashboardState = document.getElementById('dashboardState');
   const statusDot = document.getElementById('statusDot');
   const statusText = document.getElementById('statusText');
-  
+
   const hostInput = document.getElementById('hostInput');
   const portInput = document.getElementById('portInput');
-  
+  const originsInput = document.getElementById('originsInput');
+
   const saveBtn = document.getElementById('saveBtn');
   const testBtn = document.getElementById('testBtn');
+  const saveOriginsBtn = document.getElementById('saveOriginsBtn');
   const downloadBtn = document.getElementById('downloadBtn');
   const resetConfigBtn = document.getElementById('resetConfigBtn');
   const clearLogsBtn = document.getElementById('clearLogsBtn');
@@ -21,11 +31,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function checkBridge() {
     statusText.textContent = 'Checking...';
     statusDot.className = 'dot';
-    
+
     return new Promise((resolve) => {
       chrome.runtime.sendMessage({ action: 'CHECK_BRIDGE' }, (res) => {
         if (res && res.connected) {
-          statusText.textContent = 'Bridge Linked';
+          statusText.textContent = res.version ? `Bridge v${res.version}` : 'Bridge Linked';
           statusDot.className = 'dot active';
           setupState.classList.remove('active');
           dashboardState.classList.add('active');
@@ -43,9 +53,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 2. Load settings
   async function loadSettings() {
-    const stored = await chrome.storage.local.get(['printerHost', 'printerPort']);
+    const stored = await chrome.storage.local.get(['printerHost', 'printerPort', 'allowedOrigins']);
     if (stored.printerHost) hostInput.value = stored.printerHost;
     if (stored.printerPort) portInput.value = stored.printerPort;
+    if (originsInput && Array.isArray(stored.allowedOrigins)) {
+      originsInput.value = stored.allowedOrigins.join('\n');
+    }
   }
 
   // 3. Logging Helper
@@ -57,7 +70,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     logBox.appendChild(entry);
     logBox.scrollTop = logBox.scrollHeight;
 
-    // Visual pulse effect
     logBox.classList.add('active');
     setTimeout(() => logBox.classList.remove('active'), 500);
   }
@@ -80,7 +92,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     saveBtn.classList.add('loading');
     saveBtn.disabled = true;
 
-    chrome.storage.local.set({ host, port }, () => {
+    chrome.storage.local.set({ printerHost: host, printerPort: port }, () => {
       setTimeout(() => {
         saveBtn.classList.remove('loading');
         saveBtn.disabled = false;
@@ -88,6 +100,37 @@ document.addEventListener('DOMContentLoaded', async () => {
       }, 300);
     });
   });
+
+  if (saveOriginsBtn && originsInput) {
+    saveOriginsBtn.addEventListener('click', async () => {
+      const lines = originsInput.value
+        .split('\n')
+        .map((s) => s.trim().replace(/\/+$/, '')) // strip trailing slashes
+        .filter(Boolean);
+
+      // Validate each entry is a proper origin
+      const invalid = [];
+      const origins = [];
+      for (const line of lines) {
+        try {
+          const u = new URL(line);
+          origins.push(u.origin);
+        } catch (_) {
+          invalid.push(line);
+        }
+      }
+      if (invalid.length) {
+        addLog(`Invalid origin(s): ${invalid.join(', ')}`, 'error');
+        return;
+      }
+      await chrome.storage.local.set({ allowedOrigins: origins });
+      if (origins.length === 0) {
+        addLog('Allowlist cleared — bridge is open to ALL websites.', 'warning');
+      } else {
+        addLog(`Allowlist saved (${origins.length} origin${origins.length > 1 ? 's' : ''}).`, 'success');
+      }
+    });
+  }
 
   testBtn.addEventListener('click', () => {
     const host = hostInput.value.trim();
@@ -102,14 +145,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     testBtn.disabled = true;
 
     addLog(`Testing connection to ${host}:${port}...`, 'info');
-    
+
     chrome.runtime.sendMessage({
       type: 'LOCAL_TCP_PRINT',
-      payload: { host, port, bytes: [0x10, 0x04, 0x01] } // DLE EOT 1: Real-time status request
+      payload: { host, port, bytes: [0x10, 0x04, 0x01] } // DLE EOT 1: real-time status request
     }, (response) => {
       testBtn.classList.remove('loading');
       testBtn.disabled = false;
-      
+
       if (chrome.runtime.lastError) {
         addLog(`System Error: ${chrome.runtime.lastError.message}`, 'error');
       } else if (response && response.success) {
@@ -117,62 +160,21 @@ document.addEventListener('DOMContentLoaded', async () => {
       } else {
         addLog(`Failed: ${response?.error || 'Unknown error'}`, 'error');
       }
-    }); // Fixed closing
+    });
   });
 
-  downloadBtn.addEventListener('click', async () => {
-    addLog('Starting dynamic build...', 'info');
-    downloadBtn.disabled = true;
-    downloadBtn.textContent = 'Bundling...';
-    
-    // 1. Detect OS
-    let os = 'mac'; // default
-    const platform = (navigator.userAgentData?.platform || navigator.platform).toLowerCase();
+  downloadBtn.addEventListener('click', () => {
+    // Detect OS and download the matching one-click installer from
+    // GitHub Releases. No terminal, no Node.js — just run the installer
+    // and restart Chrome.
+    let os = 'mac';
+    const platform = (navigator.userAgentData?.platform || navigator.platform || '').toLowerCase();
     if (platform.includes('win')) os = 'win';
     else if (platform.includes('linux')) os = 'linux';
-    
-    // 2. Define Files to fetch (from root /host folder on GitHub)
-    const GITHUB_RAW = 'https://raw.githubusercontent.com/algonize/local_tcp/main/host/';
-    const commonFiles = ['index.js', 'com.algoramming.localtcp.json'];
-    const osFiles = {
-      mac: ['install_setup_mac.sh', 'uninstall_setup_mac.sh', 'guide_mac.txt'],
-      win: ['install_setup_windows.ps1', 'uninstall_setup_windows.ps1', 'guide_windows.txt'],
-      linux: ['install_setup_linux.sh', 'uninstall_setup_linux.sh', 'guide_linux.txt']
-    };
 
-    const filesToFetch = [...commonFiles, ...osFiles[os]];
-
-    try {
-      addLog(`Fetching setup files for ${os}...`, 'info');
-      downloadBtn.classList.add('loading');
-      downloadBtn.disabled = true;
-      
-      const zip = new JSZip();
-      
-      for (const file of filesToFetch) {
-        const response = await fetch(GITHUB_RAW + file);
-        if (!response.ok) throw new Error(`Failed to fetch ${file}`);
-        const blob = await response.blob();
-        zip.file(file, blob);
-      }
-
-      const content = await zip.generateAsync({ type: 'blob' });
-      const url = URL.createObjectURL(content);
-      
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `localtcp_bridge_${os}.zip`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      
-      addLog('ZIP Downloaded! Follow guide.txt instructions.', 'success');
-    } catch (err) {
-      addLog(`Download Error: ${err.message}`, 'error');
-    } finally {
-      downloadBtn.classList.remove('loading');
-      downloadBtn.disabled = false;
-    }
+    const url = RELEASE_BASE + INSTALLER_ASSETS[os];
+    addLog(`Downloading ${INSTALLER_ASSETS[os]}...`, 'info');
+    chrome.tabs.create({ url });
   });
 
   clearLogsBtn.addEventListener('click', () => {
@@ -185,6 +187,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       await chrome.storage.local.clear();
       hostInput.value = '';
       portInput.value = '';
+      if (originsInput) originsInput.value = '';
       addLog('All local data cleared.', 'warning');
     }
   });

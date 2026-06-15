@@ -1,0 +1,104 @@
+# Local TCP Bridge — Release Pipeline
+# Push a tag like v2.0.0 and this builds + attaches all installers to a
+# GitHub Release. The extension popup downloads them from
+# /releases/latest/download/<asset>, so users always get the newest build.
+
+name: Build Release Installers
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  binaries:
+    name: Build Go binaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.23' }
+      - name: Cross-compile all targets
+        run: |
+          cd host-go
+          bash build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: go-binaries
+          path: host-go/dist/
+
+  linux-installer:
+    name: Linux .run installer
+    needs: binaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: go-binaries, path: host-go/dist }
+      - name: Build self-extracting installer
+        run: |
+          cd installers/linux
+          bash build_run.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-installer
+          path: |
+            installers/linux/dist/localtcp-linux-installer.run
+            installers/linux/dist/localtcp-linux-uninstaller.run
+
+  windows-installer:
+    name: Windows .exe installer
+    needs: binaries
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: go-binaries, path: host-go/dist }
+      - name: Compile Inno Setup installer
+        run: |
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installers\windows\installer.iss
+        shell: pwsh
+      # NOTE: add a code-signing step here once you have a certificate
+      # (signtool sign /fd SHA256 ...) to avoid SmartScreen warnings.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: installers/windows/Output/LocalTCP-Setup-Windows.exe
+
+  mac-installer:
+    name: macOS .pkg installer
+    needs: binaries
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: go-binaries, path: host-go/dist }
+      - name: Build .pkg
+        run: |
+          cd installers/mac
+          bash build_pkg.sh
+      # NOTE: add productsign + notarytool steps here once Developer ID
+      # Installer certificate secrets are configured, to pass Gatekeeper.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-installer
+          path: installers/mac/dist/LocalTCP-Setup-Mac.pkg
+
+  release:
+    name: Publish GitHub Release
+    needs: [linux-installer, windows-installer, mac-installer]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: assets, merge-multiple: true }
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            assets/localtcp-linux-installer.run
+            assets/localtcp-linux-uninstaller.run
+            assets/LocalTCP-Setup-Windows.exe
+            assets/LocalTCP-Setup-Mac.pkg
+          generate_release_notes: true
