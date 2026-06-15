@@ -6,6 +6,12 @@
 //  - Origin allowlist: only approved web origins may use the bridge
 //  - Per-request timeout so callers never hang forever
 //  - Single persistent native port with one dispatcher listener
+//
+// MV3 lifecycle note: this service worker can be terminated when idle, which
+// kills `nativePort` and ends the native host process (and therefore its TCP
+// connection pool). Callers must NOT assume a prior CONNECT survives — it is
+// best-effort. PRINT/SEND are self-healing: the native host re-dials the socket
+// if no live connection exists, so they always work standalone after a restart.
 
 const HOST_NAME = 'com.algoramming.localtcp';
 const REQUEST_TIMEOUT_MS = 15000;
@@ -110,7 +116,7 @@ async function handleMessage(request, sender) {
     };
   }
 
-  let { action, host, port, data, connectionId } = request;
+  let { action, host, port, data, connectionId, readTimeoutMs } = request;
 
   // 2. Internal action: bridge health check
   if (action === 'CHECK_BRIDGE') {
@@ -124,11 +130,12 @@ async function handleMessage(request, sender) {
     return { success: false, error: 'Origin not allowed. Add this origin in the Local TCP extension settings.' };
   }
 
-  // 4. Resolve host/port (explicit values win and are persisted as defaults)
-  const stored = await chrome.storage.local.get(['printerHost', 'printerPort']);
-  if (host && port) {
-    await chrome.storage.local.set({ printerHost: host, printerPort: port });
-  } else {
+  // 4. Resolve host/port. Explicit values from the request win for THIS request;
+  //    otherwise fall back to the user's saved defaults. We do NOT persist values
+  //    coming from web requests — defaults are only set from the popup's Save
+  //    button, so one web app can't silently overwrite another's configuration.
+  if (!host || !port) {
+    const stored = await chrome.storage.local.get(['printerHost', 'printerPort']);
     host = host || stored.printerHost;
     port = port || stored.printerPort;
   }
@@ -145,7 +152,8 @@ async function handleMessage(request, sender) {
     host,
     port: parseInt(port),
     data,
-    connectionId: connectionId || `${host}:${port}`
+    connectionId: connectionId || `${host}:${port}`,
+    ...(readTimeoutMs ? { readTimeoutMs } : {})
   });
 }
 
@@ -158,5 +166,22 @@ const messageListener = (request, sender, sendResponse) => {
   return true; // keep the channel open for the async response
 };
 
-chrome.runtime.onMessageExternal.addListener(messageListener);
+// Web apps reach the bridge through content.js (window.postMessage -> internal
+// sendMessage), and the popup uses the same internal channel. We intentionally do
+// NOT register onMessageExternal: the manifest declares no `externally_connectable`
+// (the bridge must serve arbitrary customer origins, which can't be wildcarded
+// there), so an external listener would be unreachable dead code.
 chrome.runtime.onMessage.addListener(messageListener);
+
+// ─── First-run setup ─────────────────────────────────────────────────────────
+// The browser can't open TCP sockets on its own, so the native host still has to
+// be installed once. To make that feel like a single step, the moment the
+// extension is installed we open the setup page in a full tab and have it auto-
+// start the OS-matched installer download (see popup.js `?setup=1`). The popup
+// then auto-polls and flips to "Bridge Linked" as soon as the host registers —
+// no Chrome restart, no hunting for buttons.
+chrome.runtime.onInstalled.addListener((details) => {
+  if (details.reason === 'install') {
+    chrome.tabs.create({ url: chrome.runtime.getURL('popup.html?setup=1') });
+  }
+});

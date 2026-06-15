@@ -32,8 +32,8 @@ Local TCP operates as a multi-layer relay:
 1. Add the extension to Chrome.
 2. Open the extension popup → click **Download One-Click Installer** (it auto-detects your OS).
 3. Run the installer:
-   - 🍎 **macOS**: double-click `LocalTCP-Setup-Mac.pkg` → Continue → Install.
-   - 🪟 **Windows**: double-click `LocalTCP-Setup-Windows.exe` → Install. (No admin rights needed.)
+   - 🍎 **macOS**: double-click `LocalTCP-Setup-Mac.pkg` → Continue → Install. (macOS prompts for your password — the bridge installs system-wide under `/Library`.)
+   - 🪟 **Windows**: double-click `LocalTCP-Setup-Windows.exe` → Install. (No admin rights needed — installs per-user.)
    - 🐧 **Linux**: `chmod +x localtcp-linux-installer.run && ./localtcp-linux-installer.run`
 4. **Restart Chrome** completely. The popup will show **Bridge Linked**. Done.
 
@@ -68,12 +68,19 @@ The bridge listens for standard messages via the `window` object.
   "payload": {
     "host": "192.168.1.100",
     "port": 9100,
-    "bytes": [27, 64, 10]
+    "bytes": [27, 64, 10],
+    "readTimeoutMs": 1500
   }
 }
 ```
 
-The response arrives as a `message` event with `source: "localtcp_res"` and a matching `messageId`.
+`readTimeoutMs` is optional. When set, the bridge waits up to that many milliseconds
+for the device to reply (e.g. an ESC/POS `DLE EOT` status query) and returns the bytes
+in `response.data` (an array of integers). Omit it for fire-and-forget print jobs.
+
+The response arrives as a `message` event with `source: "localtcp_res"` and a matching
+`messageId`. Concurrent jobs to the same printer are serialized by the native host, so
+their byte streams never interleave.
 
 ---
 
@@ -110,7 +117,7 @@ cd installers/mac   && bash build_pkg.sh        # on macOS
 # Windows: compile installers/windows/installer.iss with Inno Setup 6
 ```
 
-Or just push a tag (`git tag v2.0.1 && git push --tags`) — the GitHub Actions workflow builds all three installers and attaches them to a Release automatically. The extension popup always downloads from `releases/latest`.
+Or just **push to `main`** — the GitHub Actions workflow builds all three installers and publishes them to a GitHub Release automatically, tagged from the `version` field in `manifest.json`. To cut a new version, bump `manifest.json` `version` (e.g. `2.0.1`) and push; re-pushing the same version refreshes the existing release's files. The extension popup always downloads from `releases/latest`, so users get the newest build without any link changes.
 
 ---
 

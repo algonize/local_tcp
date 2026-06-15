@@ -9,6 +9,30 @@ const INSTALLER_ASSETS = {
   linux: 'localtcp-linux-installer.run'
 };
 
+// Detect the user's OS so we hand them the right one-click installer.
+function detectOs() {
+  const platform = (navigator.userAgentData?.platform || navigator.platform || '').toLowerCase();
+  if (platform.includes('win')) return 'win';
+  if (platform.includes('linux')) return 'linux';
+  return 'mac';
+}
+
+// Only Linux ships a downloadable uninstaller; macOS/Windows use the uninstaller
+// the installer already placed on the system (simpler + no Gatekeeper/SmartScreen
+// re-download friction).
+const UNINSTALLER_ASSETS = { linux: 'localtcp-linux-uninstaller.run' };
+
+function bridgeUninstallInfo() {
+  switch (detectOs()) {
+    case 'win':
+      return { text: 'Remove the bridge: open Settings → Apps → "Local TCP Bridge" → Uninstall (or Start Menu → "Uninstall Local TCP Bridge").', download: null };
+    case 'linux':
+      return { text: 'Remove the bridge: download and run the uninstaller below (or run ~/.local/lib/localtcp/uninstall.sh).', download: UNINSTALLER_ASSETS.linux };
+    default: // mac
+      return { text: 'Remove the bridge: open Applications → double-click "Uninstall Local TCP" → enter your password.', download: null };
+  }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   const setupState = document.getElementById('setupState');
   const dashboardState = document.getElementById('dashboardState');
@@ -26,6 +50,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const resetConfigBtn = document.getElementById('resetConfigBtn');
   const clearLogsBtn = document.getElementById('clearLogsBtn');
   const logBox = document.getElementById('logBox');
+  const uninstallSteps = document.getElementById('uninstallSteps');
+  const uninstallBridgeBtn = document.getElementById('uninstallBridgeBtn');
+  const removeExtBtn = document.getElementById('removeExtBtn');
 
   // 1. Check Bridge Status
   async function checkBridge() {
@@ -74,9 +101,44 @@ document.addEventListener('DOMContentLoaded', async () => {
     setTimeout(() => logBox.classList.remove('active'), 500);
   }
 
+  // Shared installer download (used by the button and by first-run auto-setup)
+  function downloadInstaller() {
+    const os = detectOs();
+    const asset = INSTALLER_ASSETS[os];
+    addLog(`Downloading ${asset}...`, 'info');
+    chrome.tabs.create({ url: RELEASE_BASE + asset });
+  }
+
+  // Auto-poll: once the user runs the installer, the bridge registers and we flip
+  // to "Bridge Linked" on our own — no Chrome restart, no manual re-check.
+  let pollTimer = null;
+  function startPolling() {
+    if (pollTimer) return;
+    pollTimer = setInterval(async () => {
+      const linked = await checkBridge();
+      if (linked) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+        await loadSettings();
+        addLog('Bridge linked — you\'re ready to print.', 'success');
+      }
+    }, 2500);
+  }
+  window.addEventListener('unload', () => { if (pollTimer) clearInterval(pollTimer); });
+
   // Initial check
   const isLinked = await checkBridge();
-  if (isLinked) await loadSettings();
+  if (isLinked) {
+    await loadSettings();
+  } else {
+    startPolling();
+    // First-run setup tab (opened by background.js on install): auto-start the
+    // OS-matched download so the user doesn't have to find the button.
+    if (new URLSearchParams(location.search).get('setup') === '1') {
+      addLog('Welcome! Fetching your one-click installer...', 'info');
+      downloadInstaller();
+    }
+  }
 
   // ─── Actions ───────────────────────────────────────────────────────────────
 
@@ -148,7 +210,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     chrome.runtime.sendMessage({
       type: 'LOCAL_TCP_PRINT',
-      payload: { host, port, bytes: [0x10, 0x04, 0x01] } // DLE EOT 1: real-time status request
+      // DLE EOT 1: real-time status request. readTimeoutMs asks the host to wait
+      // briefly for the printer's status byte so we can confirm it actually replied.
+      payload: { host, port, bytes: [0x10, 0x04, 0x01], readTimeoutMs: 1500 }
     }, (response) => {
       testBtn.classList.remove('loading');
       testBtn.disabled = false;
@@ -156,26 +220,43 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (chrome.runtime.lastError) {
         addLog(`System Error: ${chrome.runtime.lastError.message}`, 'error');
       } else if (response && response.success) {
-        addLog('Success: Bridge reached hardware!', 'success');
+        if (Array.isArray(response.data) && response.data.length) {
+          const hex = response.data.map((b) => '0x' + b.toString(16).padStart(2, '0')).join(' ');
+          addLog(`Success: printer replied (status ${hex}).`, 'success');
+        } else {
+          addLog('Connected & wrote OK, but the device sent no status reply.', 'info');
+        }
       } else {
         addLog(`Failed: ${response?.error || 'Unknown error'}`, 'error');
       }
     });
   });
 
-  downloadBtn.addEventListener('click', () => {
-    // Detect OS and download the matching one-click installer from
-    // GitHub Releases. No terminal, no Node.js — just run the installer
-    // and restart Chrome.
-    let os = 'mac';
-    const platform = (navigator.userAgentData?.platform || navigator.platform || '').toLowerCase();
-    if (platform.includes('win')) os = 'win';
-    else if (platform.includes('linux')) os = 'linux';
+  downloadBtn.addEventListener('click', downloadInstaller);
 
-    const url = RELEASE_BASE + INSTALLER_ASSETS[os];
-    addLog(`Downloading ${INSTALLER_ASSETS[os]}...`, 'info');
-    chrome.tabs.create({ url });
-  });
+  // ─── Uninstall card ──────────────────────────────────────────────────────────
+  const uninstallInfo = bridgeUninstallInfo();
+  if (uninstallSteps) uninstallSteps.textContent = uninstallInfo.text;
+
+  if (uninstallBridgeBtn && uninstallInfo.download) {
+    uninstallBridgeBtn.style.display = '';
+    uninstallBridgeBtn.addEventListener('click', () => {
+      addLog(`Downloading ${uninstallInfo.download}...`, 'info');
+      chrome.tabs.create({ url: RELEASE_BASE + uninstallInfo.download });
+    });
+  }
+
+  if (removeExtBtn) {
+    removeExtBtn.addEventListener('click', () => {
+      // One-click self-removal — Chrome shows a native confirm dialog. No
+      // "management" permission is required for uninstallSelf.
+      if (chrome.management && chrome.management.uninstallSelf) {
+        chrome.management.uninstallSelf({ showConfirmDialog: true });
+      } else {
+        addLog('Open chrome://extensions to remove the extension.', 'info');
+      }
+    });
+  }
 
   clearLogsBtn.addEventListener('click', () => {
     logBox.innerHTML = '';
@@ -183,12 +264,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   resetConfigBtn.addEventListener('click', async () => {
-    if (confirm('Are you sure you want to reset all printer settings?')) {
-      await chrome.storage.local.clear();
+    if (confirm('Reset the printer IP/port? Your security allowlist will be kept.')) {
+      // Only clear printer config — NOT allowedOrigins. Wiping the allowlist here
+      // would silently revert the bridge to open mode (allow all websites).
+      await chrome.storage.local.remove(['printerHost', 'printerPort']);
       hostInput.value = '';
       portInput.value = '';
-      if (originsInput) originsInput.value = '';
-      addLog('All local data cleared.', 'warning');
+      addLog('Printer config reset. Security allowlist kept.', 'warning');
     }
   });
 });

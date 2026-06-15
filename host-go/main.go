@@ -25,14 +25,15 @@ const version = "2.0.0"
 // ─── Message Types ───────────────────────────────────────────────────────────
 
 type Request struct {
-	ReqID        string  `json:"reqId,omitempty"`
-	Action       string  `json:"action"`
-	Host         string  `json:"host,omitempty"`
-	Port         int     `json:"port,omitempty"`
-	Data         []byte  `json:"-"` // populated from rawData
-	RawData      []int   `json:"data,omitempty"`
-	ConnectionID string  `json:"connectionId,omitempty"`
-	TimeoutMs    int     `json:"timeoutMs,omitempty"`
+	ReqID         string `json:"reqId,omitempty"`
+	Action        string `json:"action"`
+	Host          string `json:"host,omitempty"`
+	Port          int    `json:"port,omitempty"`
+	Data          []byte `json:"-"` // populated from rawData
+	RawData       []int  `json:"data,omitempty"`
+	ConnectionID  string `json:"connectionId,omitempty"`
+	TimeoutMs     int    `json:"timeoutMs,omitempty"`
+	ReadTimeoutMs int    `json:"readTimeoutMs,omitempty"` // >0 → read back a reply after writing
 }
 
 type Response struct {
@@ -42,6 +43,7 @@ type Response struct {
 	Error        string `json:"error,omitempty"`
 	ConnectionID string `json:"connectionId,omitempty"`
 	BytesSent    int    `json:"bytesSent,omitempty"`
+	Data         []int  `json:"data,omitempty"` // bytes read back from the device (status replies, etc.)
 	Version      string `json:"version,omitempty"`
 }
 
@@ -50,6 +52,7 @@ type Response struct {
 var (
 	connMu      sync.Mutex
 	connections = map[string]net.Conn{}
+	connLocks   = map[string]*sync.Mutex{} // per-connection write lock (prevents byte-stream interleaving)
 	stdoutMu    sync.Mutex
 )
 
@@ -57,6 +60,20 @@ func getConn(id string) net.Conn {
 	connMu.Lock()
 	defer connMu.Unlock()
 	return connections[id]
+}
+
+// lockFor returns a stable per-connection mutex so all CONNECT/SEND/PRINT/DISCONNECT
+// operations on the same device are serialized. Without this, two concurrent print
+// jobs to the same socket could interleave their ESC/POS byte streams and corrupt output.
+func lockFor(id string) *sync.Mutex {
+	connMu.Lock()
+	defer connMu.Unlock()
+	l, ok := connLocks[id]
+	if !ok {
+		l = &sync.Mutex{}
+		connLocks[id] = l
+	}
+	return l
 }
 
 func setConn(id string, c net.Conn) {
@@ -136,6 +153,14 @@ func dialTimeout(req *Request) time.Duration {
 }
 
 func handle(req *Request) {
+	// A panic here must never take down the whole host (it would drop every
+	// connection and kill in-flight jobs). Recover per-request and report it.
+	defer func() {
+		if r := recover(); r != nil {
+			sendMessage(Response{ReqID: req.ReqID, Success: false, Error: fmt.Sprintf("Host error: %v", r)})
+		}
+	}()
+
 	switch req.Action {
 
 	case "PING":
@@ -143,6 +168,10 @@ func handle(req *Request) {
 
 	case "CONNECT":
 		id := connID(req)
+		lock := lockFor(id)
+		lock.Lock()
+		defer lock.Unlock()
+
 		addr := fmt.Sprintf("%s:%d", req.Host, req.Port)
 		c, err := net.DialTimeout("tcp", addr, dialTimeout(req))
 		if err != nil {
@@ -158,6 +187,12 @@ func handle(req *Request) {
 			sendMessage(Response{ReqID: req.ReqID, Success: false, Error: "Invalid data format"})
 			return
 		}
+
+		// Serialize all writes to this device so concurrent jobs can't interleave bytes.
+		lock := lockFor(id)
+		lock.Lock()
+		defer lock.Unlock()
+
 		c := getConn(id)
 		if c == nil {
 			addr := fmt.Sprintf("%s:%d", req.Host, req.Port)
@@ -176,10 +211,40 @@ func handle(req *Request) {
 			sendMessage(Response{ReqID: req.ReqID, Success: false, Error: "Write failed: " + err.Error()})
 			return
 		}
-		sendMessage(Response{ReqID: req.ReqID, Success: true, BytesSent: n})
+
+		resp := Response{ReqID: req.ReqID, Success: true, BytesSent: n, ConnectionID: id}
+
+		// Optional read-back: ESC/POS status queries (e.g. DLE EOT) reply with bytes.
+		// When the caller asks for it, wait briefly for a response and return it.
+		if req.ReadTimeoutMs > 0 {
+			c.SetReadDeadline(time.Now().Add(time.Duration(req.ReadTimeoutMs) * time.Millisecond))
+			buf := make([]byte, 512)
+			rn, rerr := c.Read(buf)
+			if rn > 0 {
+				resp.Data = make([]int, rn)
+				for i := 0; i < rn; i++ {
+					resp.Data[i] = int(buf[i])
+				}
+			}
+			// A timeout with no data is NOT a failure — many devices stay silent.
+			if rerr != nil && rn == 0 {
+				if ne, ok := rerr.(net.Error); ok && ne.Timeout() {
+					resp.Message = "Written; no status reply within readTimeoutMs"
+				} else {
+					// A non-timeout read error means the socket is bad — drop it.
+					dropConn(id)
+					resp.Message = "Written; read failed: " + rerr.Error()
+				}
+			}
+		}
+		sendMessage(resp)
 
 	case "DISCONNECT":
 		id := connID(req)
+		lock := lockFor(id)
+		lock.Lock()
+		defer lock.Unlock()
+
 		if getConn(id) != nil {
 			dropConn(id)
 			sendMessage(Response{ReqID: req.ReqID, Success: true, Message: "Disconnected"})

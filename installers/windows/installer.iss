@@ -22,7 +22,7 @@
 #define ExtensionId "ngbakchodnmhndnghhejmocfadjfekkf"
 
 [Setup]
-AppId={{B7F3A2E1-4C8D-4E5F-9A1B-LOCALTCP2026}
+AppId={{B7F3A2E1-4C8D-4E5F-9A1B-0C1D2E3F4A5B}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}

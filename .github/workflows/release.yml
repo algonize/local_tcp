@@ -1,13 +1,15 @@
 # Local TCP Bridge — Release Pipeline
-# Push a tag like v2.0.0 and this builds + attaches all installers to a
-# GitHub Release. The extension popup downloads them from
-# /releases/latest/download/<asset>, so users always get the newest build.
+# Every push to `main` builds all installers and publishes/updates a GitHub
+# Release tagged from the `version` field in manifest.json (e.g. v2.0.0). The
+# extension popup downloads from /releases/latest/download/<asset>, so users
+# always get the newest build automatically — bump manifest.json `version` to
+# cut a new release; re-pushing the same version just refreshes the assets.
 
 name: Build Release Installers
 
 on:
   push:
-    tags: ['v*']
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -92,10 +94,16 @@ jobs:
     needs: [linux-installer, windows-installer, mac-installer]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+      - name: Read version from manifest.json
+        id: ver
+        run: echo "version=$(jq -r .version manifest.json)" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@v4
         with: { path: assets, merge-multiple: true }
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.ver.outputs.version }}
+          name: Local TCP v${{ steps.ver.outputs.version }}
           files: |
             assets/localtcp-linux-installer.run
             assets/localtcp-linux-uninstaller.run
