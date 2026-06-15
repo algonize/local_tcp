@@ -89,8 +89,13 @@ function sendToHost(message) {
 // extension popup to lock the bridge down to your own apps.
 
 async function isOriginAllowed(sender) {
-  // Messages from the extension itself (popup/dashboard) are always allowed
-  if (sender.id === chrome.runtime.id && !sender.tab && !sender.url?.startsWith('http')) {
+  // Messages from the extension's own pages (popup AND the setup tab) are always
+  // allowed. We identify them by the chrome-extension://<our id> origin/url —
+  // NOT by `!sender.tab`, because our setup page runs as a full tab (sender.tab
+  // is set there) yet must still pass even when a strict allowlist is configured.
+  const selfOrigin = `chrome-extension://${chrome.runtime.id}`;
+  if (sender.id === chrome.runtime.id &&
+      (sender.origin === selfOrigin || sender.url?.startsWith(selfOrigin + '/'))) {
     return true;
   }
   const { allowedOrigins } = await chrome.storage.local.get(['allowedOrigins']);
