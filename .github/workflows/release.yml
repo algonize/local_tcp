@@ -78,12 +78,40 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with: { name: go-binaries, path: host-go/dist }
-      - name: Build .pkg
+      - name: Import Developer ID certificates
+        env:
+          MAC_APP_CERT_BASE64: ${{ secrets.MAC_APP_CERT_BASE64 }}
+          MAC_INSTALLER_CERT_BASE64: ${{ secrets.MAC_INSTALLER_CERT_BASE64 }}
+          MAC_CERT_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN="$RUNNER_TEMP/build.keychain-db"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          # Make our keychain the default + searchable so signing tools find the certs
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | sed s/\"//g)
+          security default-keychain -s "$KEYCHAIN"
+
+          echo "$MAC_APP_CERT_BASE64"       | base64 --decode > "$RUNNER_TEMP/app.p12"
+          echo "$MAC_INSTALLER_CERT_BASE64" | base64 --decode > "$RUNNER_TEMP/installer.p12"
+          security import "$RUNNER_TEMP/app.p12"       -k "$KEYCHAIN" -P "$MAC_CERT_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productsign
+          security import "$RUNNER_TEMP/installer.p12" -k "$KEYCHAIN" -P "$MAC_CERT_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productsign
+          # Let codesign/productsign use the keys without an interactive prompt
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          rm -f "$RUNNER_TEMP/app.p12" "$RUNNER_TEMP/installer.p12"
+          echo "Imported identities:"; security find-identity -v | grep "Developer ID" || true
+      - name: Build, sign & notarize .pkg
+        env:
+          AC_APPLE_ID: ${{ secrets.AC_APPLE_ID }}
+          AC_TEAM_ID: ${{ secrets.AC_TEAM_ID }}
+          AC_APP_PASSWORD: ${{ secrets.AC_APP_PASSWORD }}
         run: |
           cd installers/mac
           bash build_pkg.sh
-      # NOTE: add productsign + notarytool steps here once Developer ID
-      # Installer certificate secrets are configured, to pass Gatekeeper.
+      - name: Verify notarization
+        run: spctl --assess --type install -vv installers/mac/dist/LocalTCP-Setup-Mac.pkg
       - uses: actions/upload-artifact@v4
         with:
           name: mac-installer

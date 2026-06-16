@@ -1,24 +1,30 @@
 #!/bin/bash
-# Local TCP Bridge — macOS .pkg Builder
+# Local TCP Bridge — macOS .pkg Builder (auto sign + notarize)
 # ------------------------------------------------------------
-# Run this ON A MAC (pkgbuild/productbuild are macOS-only) after
+# Run this ON A MAC (pkgbuild/productsign are macOS-only) after
 # running host-go/build.sh to produce the darwin binaries.
 #
-#   ./build_pkg.sh
+#   bash build_pkg.sh
 #
 # Output: dist/LocalTCP-Setup-Mac.pkg
-# End-user experience: double-click the .pkg → Next → Next → Done.
-# No terminal, no Node.js, no drag-and-drop into Terminal.
 #
-# (Recommended) Sign + notarize before distribution to avoid Gatekeeper
-# warnings (also codesign the bundled Uninstall app):
-#   codesign --force --deep --sign "Developer ID Application: Algoramming Systems Ltd. (JL9DB72PWR)" \
-#       "uninstaller-app/Uninstall Local TCP.app"
-#   productsign --sign "Developer ID Installer: Algoramming Systems Ltd. (JL9DB72PWR)" \
-#       dist/LocalTCP-Setup-Mac.pkg dist/LocalTCP-Setup-Mac-signed.pkg
-#   xcrun notarytool submit dist/LocalTCP-Setup-Mac-signed.pkg \
-#       --keychain-profile "AC_PROFILE" --wait
-#   xcrun stapler staple dist/LocalTCP-Setup-Mac-signed.pkg
+# Signing + notarization are AUTOMATIC when the Developer ID certificates are
+# present in the keychain. If they're absent (e.g. CI without secrets, or a
+# Linux box), the script still builds an UNSIGNED pkg and tells you so.
+#
+# To produce a pkg that installs with NO Gatekeeper warning you need, once:
+#   1. A "Developer ID Application" + "Developer ID Installer" cert in your keychain
+#      (Xcode → Settings → Accounts → Manage Certificates → +).
+#   2. Notarization credentials stored once:
+#        xcrun notarytool store-credentials AC_PROFILE \
+#          --apple-id "you@company.com" --team-id JL9DB72PWR --password "app-specific-pw"
+#   Then just:  bash build_pkg.sh
+#
+# Overridable via env vars:
+#   APP_ID, INST_ID      — exact signing identity strings (defaults below)
+#   NOTARY_PROFILE       — notarytool keychain profile name (default: AC_PROFILE)
+#   NOTARY_KEY/KEY_ID/ISSUER — App Store Connect API key (for CI; used if NOTARY_KEY set)
+#   SKIP_NOTARIZE=1      — sign but don't notarize
 
 set -e
 cd "$(dirname "$0")"
@@ -27,6 +33,16 @@ HOST_NAME="com.algoramming.localtcp"
 VERSION="2.0.0"
 IDENTIFIER="com.algoramming.localtcp.bridge"
 GO_DIST="../../host-go/dist"
+
+APP_ID="${APP_ID:-Developer ID Application: Algoramming Systems Ltd. (JL9DB72PWR)}"
+INST_ID="${INST_ID:-Developer ID Installer: Algoramming Systems Ltd. (JL9DB72PWR)}"
+NOTARY_PROFILE="${NOTARY_PROFILE:-AC_PROFILE}"
+PKG="dist/LocalTCP-Setup-Mac.pkg"
+
+# Detect which identities are actually available in the keychain.
+have_app_id=false; have_inst_id=false
+if security find-identity -v -p codesigning 2>/dev/null | grep -qF "$APP_ID"; then have_app_id=true; fi
+if security find-identity -v 2>/dev/null | grep -qF "$INST_ID"; then have_inst_id=true; fi
 
 # System-wide install locations (fixed paths → manifest needs no patching)
 APP_DIR="Library/Application Support/LocalTCP"
@@ -52,6 +68,18 @@ mkdir -p "$ROOT/Applications"
 cp -R "uninstaller-app/Uninstall Local TCP.app" "$ROOT/Applications/"
 chmod 755 "$ROOT/Applications/Uninstall Local TCP.app/Contents/MacOS/uninstall"
 
+# 1c. Code-sign the executables BEFORE packaging (required for notarization).
+#     Hardened runtime (--options runtime) + secure timestamp are mandatory.
+if $have_app_id; then
+  echo "→ Signing binary + uninstaller app with: $APP_ID"
+  codesign --force --options runtime --timestamp --sign "$APP_ID" \
+    "$ROOT/$APP_DIR/localtcp"
+  codesign --force --options runtime --timestamp --sign "$APP_ID" \
+    "$ROOT/Applications/Uninstall Local TCP.app"
+else
+  echo "⚠️  '$APP_ID' not found in keychain — building UNSIGNED (will trigger Gatekeeper)."
+fi
+
 # 2. Native Messaging manifest (absolute path is fixed for system installs)
 MANIFEST='{
   "name": "'"$HOST_NAME"'",
@@ -65,15 +93,45 @@ MANIFEST='{
 echo "$MANIFEST" > "$ROOT/$CHROME_NMH_DIR/$HOST_NAME.json"
 echo "$MANIFEST" > "$ROOT/$EDGE_NMH_DIR/$HOST_NAME.json"
 
-# 3. Build the package
+# 3. Build the component package
 mkdir -p dist
 pkgbuild \
   --root "$ROOT" \
   --identifier "$IDENTIFIER" \
   --version "$VERSION" \
   --install-location "/" \
-  "dist/LocalTCP-Setup-Mac.pkg"
+  "$PKG"
 
-echo ""
-echo "✅ Built dist/LocalTCP-Setup-Mac.pkg"
-echo "👉 Sign + notarize before publishing (see header comments)."
+# 4. Sign the pkg with the Developer ID Installer cert
+if $have_inst_id; then
+  echo "→ Signing pkg with: $INST_ID"
+  productsign --sign "$INST_ID" "$PKG" "${PKG%.pkg}-signed.pkg"
+  mv -f "${PKG%.pkg}-signed.pkg" "$PKG"
+else
+  echo "⚠️  '$INST_ID' not found in keychain — pkg left UNSIGNED."
+fi
+
+# 5. Notarize + staple (only meaningful for a signed pkg)
+if $have_inst_id && [[ "$SKIP_NOTARIZE" != "1" ]]; then
+  if [[ -n "$NOTARY_KEY" ]]; then
+    NOTARY_AUTH=(--key "$NOTARY_KEY" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER")
+  elif [[ -n "$AC_APP_PASSWORD" ]]; then
+    # CI path: notarize directly with an app-specific password (no stored profile)
+    NOTARY_AUTH=(--apple-id "$AC_APPLE_ID" --team-id "$AC_TEAM_ID" --password "$AC_APP_PASSWORD")
+  else
+    NOTARY_AUTH=(--keychain-profile "$NOTARY_PROFILE")
+  fi
+  echo "→ Submitting to Apple notary service (this can take a few minutes)..."
+  if xcrun notarytool submit "$PKG" "${NOTARY_AUTH[@]}" --wait; then
+    xcrun stapler staple "$PKG"
+    echo "✅ Signed, notarized & stapled: $PKG"
+  else
+    echo "⚠️  Notarization failed. The pkg is SIGNED but NOT notarized (Gatekeeper will still warn)."
+    echo "    Set up creds once: xcrun notarytool store-credentials $NOTARY_PROFILE \\"
+    echo "      --apple-id <you> --team-id JL9DB72PWR --password <app-specific-pw>"
+  fi
+else
+  echo ""
+  echo "✅ Built $PKG"
+  $have_inst_id || echo "👉 Install the Developer ID certs to sign; see header for notarization."
+fi
