@@ -39,6 +39,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   const statusDot = document.getElementById('statusDot');
   const statusText = document.getElementById('statusText');
 
+  // Show the extension version from the manifest in the header.
+  const appVersionEl = document.getElementById('appVersion');
+  if (appVersionEl) {
+    appVersionEl.textContent = `v${chrome.runtime.getManifest().version}`;
+  }
+
   const hostInput = document.getElementById('hostInput');
   const portInput = document.getElementById('portInput');
   const originsInput = document.getElementById('originsInput');

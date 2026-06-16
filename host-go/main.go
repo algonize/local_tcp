@@ -16,6 +16,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"strings"
 	"sync"
 	"time"
 )
@@ -152,6 +153,42 @@ func dialTimeout(req *Request) time.Duration {
 	return 5 * time.Second
 }
 
+// dialWithRetry opens a TCP connection, retrying transient failures.
+// Wi-Fi network printers sleep their radio to save power; the first connect
+// then fails with "no route to host" / "connection timed out" because ARP
+// can't resolve the (asleep) device yet. A short retry wakes it and succeeds,
+// so users never see a spurious failure on the first print after idle.
+func dialWithRetry(addr string, timeout time.Duration) (net.Conn, error) {
+	const maxAttempts = 3
+	var err error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		var c net.Conn
+		c, err = net.DialTimeout("tcp", addr, timeout)
+		if err == nil {
+			return c, nil
+		}
+		if attempt < maxAttempts && isTransientDialErr(err) {
+			time.Sleep(time.Duration(attempt) * 300 * time.Millisecond)
+			continue
+		}
+		break
+	}
+	return nil, err
+}
+
+// isTransientDialErr reports whether a dial error is the kind that typically
+// clears on retry (host asleep / not yet ARP-resolved / momentary timeout)
+// rather than a hard config error like connection refused.
+func isTransientDialErr(err error) bool {
+	if ne, ok := err.(net.Error); ok && ne.Timeout() {
+		return true
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "no route to host") ||
+		strings.Contains(msg, "host is down") ||
+		strings.Contains(msg, "network is unreachable")
+}
+
 func handle(req *Request) {
 	// A panic here must never take down the whole host (it would drop every
 	// connection and kill in-flight jobs). Recover per-request and report it.
@@ -173,7 +210,7 @@ func handle(req *Request) {
 		defer lock.Unlock()
 
 		addr := fmt.Sprintf("%s:%d", req.Host, req.Port)
-		c, err := net.DialTimeout("tcp", addr, dialTimeout(req))
+		c, err := dialWithRetry(addr, dialTimeout(req))
 		if err != nil {
 			sendMessage(Response{ReqID: req.ReqID, Success: false, Error: "Socket error: " + err.Error(), ConnectionID: id})
 			return
@@ -196,7 +233,7 @@ func handle(req *Request) {
 		c := getConn(id)
 		if c == nil {
 			addr := fmt.Sprintf("%s:%d", req.Host, req.Port)
-			nc, err := net.DialTimeout("tcp", addr, dialTimeout(req))
+			nc, err := dialWithRetry(addr, dialTimeout(req))
 			if err != nil {
 				sendMessage(Response{ReqID: req.ReqID, Success: false, Error: "Socket connect failed: " + err.Error()})
 				return
