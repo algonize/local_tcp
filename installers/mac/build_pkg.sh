@@ -6,7 +6,7 @@
 #
 #   bash build_pkg.sh
 #
-# Output: dist/LocalTCP-Setup-Mac.pkg
+# Output: dist/localtcp-mac-installer.pkg
 #
 # Signing + notarization are AUTOMATIC when the Developer ID certificates are
 # present in the keychain. If they're absent (e.g. CI without secrets, or a
@@ -37,7 +37,7 @@ GO_DIST="../../host-go/dist"
 APP_ID="${APP_ID:-Developer ID Application: Algoramming Systems Ltd. (JL9DB72PWR)}"
 INST_ID="${INST_ID:-Developer ID Installer: Algoramming Systems Ltd. (JL9DB72PWR)}"
 NOTARY_PROFILE="${NOTARY_PROFILE:-AC_PROFILE}"
-PKG="dist/LocalTCP-Setup-Mac.pkg"
+PKG="dist/localtcp-mac-installer.pkg"
 
 # Detect which identities are actually available in the keychain.
 have_app_id=false; have_inst_id=false

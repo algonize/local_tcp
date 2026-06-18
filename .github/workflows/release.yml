@@ -59,16 +59,19 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with: { name: go-binaries, path: host-go/dist }
-      - name: Compile Inno Setup installer
+      - name: Compile Inno Setup installer + uninstaller
         run: |
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installers\windows\installer.iss
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installers\windows\uninstaller.iss
         shell: pwsh
       # NOTE: add a code-signing step here once you have a certificate
       # (signtool sign /fd SHA256 ...) to avoid SmartScreen warnings.
       - uses: actions/upload-artifact@v4
         with:
           name: windows-installer
-          path: installers/windows/Output/LocalTCP-Setup-Windows.exe
+          path: |
+            installers/windows/Output/localtcp-windows-installer.exe
+            installers/windows/Output/localtcp-windows-uninstaller.exe
 
   mac-installer:
     name: macOS .pkg installer
@@ -102,7 +105,7 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
           rm -f "$RUNNER_TEMP/app.p12" "$RUNNER_TEMP/installer.p12"
           echo "Imported identities:"; security find-identity -v | grep "Developer ID" || true
-      - name: Build, sign & notarize .pkg
+      - name: Build, sign & notarize .pkg (installer + uninstaller)
         env:
           AC_APPLE_ID: ${{ secrets.AC_APPLE_ID }}
           AC_TEAM_ID: ${{ secrets.AC_TEAM_ID }}
@@ -110,12 +113,17 @@ jobs:
         run: |
           cd installers/mac
           bash build_pkg.sh
+          bash build_uninstall_pkg.sh
       - name: Verify notarization
-        run: spctl --assess --type install -vv installers/mac/dist/LocalTCP-Setup-Mac.pkg
+        run: |
+          spctl --assess --type install -vv installers/mac/dist/localtcp-mac-installer.pkg
+          spctl --assess --type install -vv installers/mac/dist/localtcp-mac-uninstaller.pkg
       - uses: actions/upload-artifact@v4
         with:
           name: mac-installer
-          path: installers/mac/dist/LocalTCP-Setup-Mac.pkg
+          path: |
+            installers/mac/dist/localtcp-mac-installer.pkg
+            installers/mac/dist/localtcp-mac-uninstaller.pkg
 
   release:
     name: Publish GitHub Release
@@ -135,6 +143,8 @@ jobs:
           files: |
             assets/localtcp-linux-installer.run
             assets/localtcp-linux-uninstaller.run
-            assets/LocalTCP-Setup-Windows.exe
-            assets/LocalTCP-Setup-Mac.pkg
+            assets/localtcp-windows-installer.exe
+            assets/localtcp-windows-uninstaller.exe
+            assets/localtcp-mac-installer.pkg
+            assets/localtcp-mac-uninstaller.pkg
           generate_release_notes: true

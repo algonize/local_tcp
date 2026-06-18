@@ -4,9 +4,9 @@
 ;   1. Run host-go/build.sh (or `go build`) to produce
 ;      dist/localtcp-windows-amd64.exe
 ;   2. Compile this script:  iscc installer.iss
-;   3. Output: Output/LocalTCP-Setup-Windows.exe
+;   3. Output: Output/localtcp-windows-installer.exe
 ;   4. (Recommended) Code-sign the exe to avoid SmartScreen warnings:
-;      signtool sign /fd SHA256 /a Output/LocalTCP-Setup-Windows.exe
+;      signtool sign /fd SHA256 /a Output/localtcp-windows-installer.exe
 ;
 ; What it does (NO admin rights required — installs per-user):
 ;   - Copies localtcp.exe to %LOCALAPPDATA%\Algoramming\LocalTCP
@@ -31,7 +31,7 @@ DefaultDirName={localappdata}\Algoramming\LocalTCP
 DisableDirPage=yes
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
-OutputBaseFilename=LocalTCP-Setup-Windows
+OutputBaseFilename=localtcp-windows-installer
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern

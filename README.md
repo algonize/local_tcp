@@ -32,8 +32,8 @@ Local TCP operates as a multi-layer relay:
 1. Add the extension to Chrome.
 2. Open the extension popup → click **Download One-Click Installer** (it auto-detects your OS).
 3. Run the installer:
-   - 🍎 **macOS**: double-click `LocalTCP-Setup-Mac.pkg` → Continue → Install. (macOS prompts for your password — the bridge installs system-wide under `/Library`.)
-   - 🪟 **Windows**: double-click `LocalTCP-Setup-Windows.exe` → Install. (No admin rights needed — installs per-user.)
+   - 🍎 **macOS**: double-click `localtcp-mac-installer.pkg` → Continue → Install. (macOS prompts for your password — the bridge installs system-wide under `/Library`.)
+   - 🪟 **Windows**: double-click `localtcp-windows-installer.exe` → Install. (No admin rights needed — installs per-user.)
    - 🐧 **Linux**: `chmod +x localtcp-linux-installer.run && ./localtcp-linux-installer.run`
 4. **Restart Chrome** completely. The popup will show **Bridge Linked**. Done.
 

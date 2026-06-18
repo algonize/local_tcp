@@ -190,6 +190,13 @@
     }
     .btn-secondary:hover:not(:disabled) { background: rgba(255, 255, 255, 0.1); }
 
+    .btn-danger {
+      background: rgba(251, 113, 133, 0.12);
+      border: 1px solid rgba(251, 113, 133, 0.4);
+      color: var(--error);
+    }
+    .btn-danger:hover:not(:disabled) { background: rgba(251, 113, 133, 0.2); transform: translateY(-1px); }
+
     .btn-flex { flex: 1; }
 
     /* Center Aligned Action Buttons */
@@ -360,20 +367,6 @@
         </div>
       </div>
 
-      <div class="card" style="margin-bottom: 0;">
-        <div class="activity-header">
-          <div class="card-title">Uninstall</div>
-        </div>
-        <div class="step-text" id="uninstallSteps" style="margin-bottom: 14px; line-height: 1.6;"></div>
-        <div class="field-row" style="margin-bottom: 0;">
-          <button class="btn btn-secondary btn-flex" id="uninstallBridgeBtn" style="display: none;">
-            <span class="btn-text">Download Bridge Uninstaller</span>
-          </button>
-          <button class="btn btn-secondary btn-flex" id="removeExtBtn">
-            <span class="btn-text">Remove Extension</span>
-          </button>
-        </div>
-      </div>
     </div>
 
     <div class="footer">
@@ -382,6 +375,13 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
         Download Setup Kit
       </button>
+      <button class="btn btn-danger" id="uninstallBtn" style="margin-top: 12px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+        Uninstall Setup Kit
+      </button>
+      <div class="centered-action">
+        <button class="tiny-btn" id="removeExtBtn">Remove Extension</button>
+      </div>
     </div>
   </div>
 

@@ -4,8 +4,8 @@
 
 const RELEASE_BASE = 'https://github.com/algonize/local_tcp/releases/latest/download/';
 const INSTALLER_ASSETS = {
-  win: 'LocalTCP-Setup-Windows.exe',
-  mac: 'LocalTCP-Setup-Mac.pkg',
+  win: 'localtcp-windows-installer.exe',
+  mac: 'localtcp-mac-installer.pkg',
   linux: 'localtcp-linux-installer.run'
 };
 
@@ -17,21 +17,13 @@ function detectOs() {
   return 'mac';
 }
 
-// Only Linux ships a downloadable uninstaller; macOS/Windows use the uninstaller
-// the installer already placed on the system (simpler + no Gatekeeper/SmartScreen
-// re-download friction).
-const UNINSTALLER_ASSETS = { linux: 'localtcp-linux-uninstaller.run' };
-
-function bridgeUninstallInfo() {
-  switch (detectOs()) {
-    case 'win':
-      return { text: 'Remove the bridge: open Settings → Apps → "Local TCP Bridge" → Uninstall (or Start Menu → "Uninstall Local TCP Bridge").', download: null };
-    case 'linux':
-      return { text: 'Remove the bridge: download and run the uninstaller below (or run ~/.local/lib/localtcp/uninstall.sh).', download: UNINSTALLER_ASSETS.linux };
-    default: // mac
-      return { text: 'Remove the bridge: open Applications → double-click "Uninstall Local TCP" → enter your password.', download: null };
-  }
-}
+// One-click uninstaller, mirroring the Setup Kit: each OS gets a downloadable
+// package that removes the bridge when run (pkg/exe/run).
+const UNINSTALLER_ASSETS = {
+  win: 'localtcp-windows-uninstaller.exe',
+  mac: 'localtcp-mac-uninstaller.pkg',
+  linux: 'localtcp-linux-uninstaller.run'
+};
 
 document.addEventListener('DOMContentLoaded', async () => {
   const setupState = document.getElementById('setupState');
@@ -53,11 +45,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   const testBtn = document.getElementById('testBtn');
   const saveOriginsBtn = document.getElementById('saveOriginsBtn');
   const downloadBtn = document.getElementById('downloadBtn');
+  const uninstallBtn = document.getElementById('uninstallBtn');
   const resetConfigBtn = document.getElementById('resetConfigBtn');
   const clearLogsBtn = document.getElementById('clearLogsBtn');
   const logBox = document.getElementById('logBox');
-  const uninstallSteps = document.getElementById('uninstallSteps');
-  const uninstallBridgeBtn = document.getElementById('uninstallBridgeBtn');
   const removeExtBtn = document.getElementById('removeExtBtn');
 
   // 1. Check Bridge Status
@@ -111,6 +102,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   function downloadInstaller() {
     const os = detectOs();
     const asset = INSTALLER_ASSETS[os];
+    addLog(`Downloading ${asset}...`, 'info');
+    chrome.tabs.create({ url: RELEASE_BASE + asset });
+  }
+
+  // OS-matched one-click uninstaller download.
+  function downloadUninstaller() {
+    const os = detectOs();
+    const asset = UNINSTALLER_ASSETS[os];
     addLog(`Downloading ${asset}...`, 'info');
     chrome.tabs.create({ url: RELEASE_BASE + asset });
   }
@@ -240,17 +239,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   downloadBtn.addEventListener('click', downloadInstaller);
 
-  // ─── Uninstall card ──────────────────────────────────────────────────────────
-  const uninstallInfo = bridgeUninstallInfo();
-  if (uninstallSteps) uninstallSteps.textContent = uninstallInfo.text;
-
-  if (uninstallBridgeBtn && uninstallInfo.download) {
-    uninstallBridgeBtn.style.display = '';
-    uninstallBridgeBtn.addEventListener('click', () => {
-      addLog(`Downloading ${uninstallInfo.download}...`, 'info');
-      chrome.tabs.create({ url: RELEASE_BASE + uninstallInfo.download });
-    });
-  }
+  // ─── Uninstall ───────────────────────────────────────────────────────────────
+  if (uninstallBtn) uninstallBtn.addEventListener('click', downloadUninstaller);
 
   if (removeExtBtn) {
     removeExtBtn.addEventListener('click', () => {
