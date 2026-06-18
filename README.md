@@ -123,11 +123,11 @@ Or just **push to `main`** — the GitHub Actions workflow builds all three inst
 
 ## 🗑️ Uninstallation
 
-Just as easy as installing — one double-click:
+Just as easy as installing. In the extension popup click **Uninstall Setup Kit** — it downloads the uninstaller for your OS — then run it:
 
-- 🪟 **Windows**: Start Menu → **Uninstall Local TCP Bridge** (or Settings → Apps → Uninstall).
-- 🍎 **macOS**: open **Applications** → double-click **Uninstall Local TCP** → enter your password → Done.
-- 🐧 **Linux**: run `localtcp-linux-uninstaller.run` (from GitHub Releases) the same way you ran the installer, or `bash ~/.local/lib/localtcp/uninstall.sh`.
+- 🪟 **Windows**: run `localtcp-windows-uninstaller.exe` (or Start Menu → **Uninstall Local TCP Bridge** / Settings → Apps → Uninstall).
+- 🍎 **macOS**: double-click `localtcp-mac-uninstaller.pkg` → Continue → Install → enter your password → Done.
+- 🐧 **Linux**: run `localtcp-linux-uninstaller.run` the same way you ran the installer, or `bash ~/.local/lib/localtcp/uninstall.sh`.
 
 
 

@@ -63,24 +63,16 @@ else
 fi
 chmod 755 "$ROOT/$APP_DIR/localtcp"
 
-# 1b. Ship a double-clickable uninstaller app into /Applications
-mkdir -p "$ROOT/Applications"
-cp -R "uninstaller-app/Uninstall Local TCP.app" "$ROOT/Applications/"
-chmod 755 "$ROOT/Applications/Uninstall Local TCP.app/Contents/MacOS/uninstall"
-# Stamp the app bundle's version from manifest (single source of truth). Only
-# the version <string> starts with a digit, so this targets it uniquely. The
-# app is re-signed below, so editing the plist here is safe.
-/usr/bin/sed -i '' "s|<string>[0-9][0-9.]*</string>|<string>$VERSION</string>|" \
-  "$ROOT/Applications/Uninstall Local TCP.app/Contents/Info.plist"
+# Uninstall is handled by the downloadable localtcp-mac-uninstaller.pkg (built by
+# build_uninstall_pkg.sh and fetched by the popup's "Uninstall Setup Kit" button),
+# so the installer no longer bundles an /Applications uninstaller app.
 
-# 1c. Code-sign the executables BEFORE packaging (required for notarization).
+# 1c. Code-sign the binary BEFORE packaging (required for notarization).
 #     Hardened runtime (--options runtime) + secure timestamp are mandatory.
 if $have_app_id; then
-  echo "→ Signing binary + uninstaller app with: $APP_ID"
+  echo "→ Signing binary with: $APP_ID"
   codesign --force --options runtime --timestamp --sign "$APP_ID" \
     "$ROOT/$APP_DIR/localtcp"
-  codesign --force --options runtime --timestamp --sign "$APP_ID" \
-    "$ROOT/Applications/Uninstall Local TCP.app"
 else
   echo "⚠️  '$APP_ID' not found in keychain — building UNSIGNED (will trigger Gatekeeper)."
 fi
