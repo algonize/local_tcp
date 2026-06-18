@@ -30,7 +30,7 @@ set -e
 cd "$(dirname "$0")"
 
 HOST_NAME="com.algoramming.localtcp"
-VERSION="2.0.0"
+VERSION="$(grep -m1 '"version"' ../../manifest.json | sed -E 's/.*"version"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')"
 IDENTIFIER="com.algoramming.localtcp.bridge"
 GO_DIST="../../host-go/dist"
 

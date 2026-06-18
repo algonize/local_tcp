@@ -21,7 +21,10 @@ import (
 	"time"
 )
 
-const version = "2.0.0"
+// version is injected at build time from manifest.json via:
+//   -ldflags "-X main.version=<v>"
+// The fallback below is only used for ad-hoc `go run` / `go build` without flags.
+var version = "0.0.0-dev"
 
 // ─── Message Types ───────────────────────────────────────────────────────────
 
@@ -153,27 +156,40 @@ func dialTimeout(req *Request) time.Duration {
 	return 5 * time.Second
 }
 
-// dialWithRetry opens a TCP connection, retrying transient failures.
-// Wi-Fi network printers sleep their radio to save power; the first connect
-// then fails with "no route to host" / "connection timed out" because ARP
-// can't resolve the (asleep) device yet. A short retry wakes it and succeeds,
-// so users never see a spurious failure on the first print after idle.
+// dialWithRetry opens a TCP connection, persistently retrying transient
+// failures across a time budget.
+//
+// Wi-Fi network printers deep-sleep their radio to save power. The first
+// connect to a sleeping printer fails *instantly* with EHOSTUNREACH
+// ("no route to host") — the OS returns that error the moment ARP fails to
+// resolve the asleep device, WITHOUT waiting out the dial timeout. So a couple
+// of quick retries (the old 3-attempt/<1s loop) all fire before the radio has
+// any chance to wake, and the user sees a spurious failure.
+//
+// The old Node host never hit this: its timeout-less socket.connect() leaned on
+// the OS's ~75s connect retry, whose sustained SYN/ARP retransmission woke the
+// printer within a few seconds. We emulate that here by re-issuing the connect
+// (each attempt re-sends ARP) at a steady cadence until retryBudget elapses —
+// kept just under the extension's 15s REQUEST_TIMEOUT_MS so the caller gets our
+// real error rather than a generic bridge timeout.
 func dialWithRetry(addr string, timeout time.Duration) (net.Conn, error) {
-	const maxAttempts = 3
+	const retryBudget = 13 * time.Second   // stay under the extension's 15s request timeout
+	const retryPause = 400 * time.Millisecond
+	deadline := time.Now().Add(retryBudget)
 	var err error
-	for attempt := 1; attempt <= maxAttempts; attempt++ {
+	for {
 		var c net.Conn
 		c, err = net.DialTimeout("tcp", addr, timeout)
 		if err == nil {
 			return c, nil
 		}
-		if attempt < maxAttempts && isTransientDialErr(err) {
-			time.Sleep(time.Duration(attempt) * 300 * time.Millisecond)
-			continue
+		// Stop on a hard error (e.g. connection refused) or once another
+		// attempt+pause would overrun the budget.
+		if !isTransientDialErr(err) || time.Now().Add(retryPause).After(deadline) {
+			return nil, err
 		}
-		break
+		time.Sleep(retryPause)
 	}
-	return nil, err
 }
 
 // isTransientDialErr reports whether a dial error is the kind that typically

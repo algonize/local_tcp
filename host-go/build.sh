@@ -7,8 +7,10 @@ set -e
 cd "$(dirname "$0")"
 mkdir -p dist
 
-VERSION="2.0.0"
-LDFLAGS="-s -w"
+# Single source of truth: read the version straight from the extension manifest.
+VERSION="$(grep -m1 '"version"' ../manifest.json | sed -E 's/.*"version"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')"
+[[ -z "$VERSION" ]] && { echo "❌ Could not read version from ../manifest.json"; exit 1; }
+LDFLAGS="-s -w -X main.version=$VERSION"
 
 build() {
   local GOOS=$1 GOARCH=$2 OUT=$3
