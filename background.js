@@ -14,7 +14,10 @@
 // if no live connection exists, so they always work standalone after a restart.
 
 const HOST_NAME = 'com.algoramming.localtcp';
-const REQUEST_TIMEOUT_MS = 15000;
+// 30s gives the bridge a Node-like window to wake a deep-sleeping Wi-Fi printer
+// via a sustained connect (see dialWithRetry in host-go/main.go); it must stay
+// above the bridge's 28s wake budget so the bridge's real error surfaces first.
+const REQUEST_TIMEOUT_MS = 30000;
 
 let nativePort = null;
 let reqCounter = 0;

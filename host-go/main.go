@@ -156,35 +156,50 @@ func dialTimeout(req *Request) time.Duration {
 	return 5 * time.Second
 }
 
-// dialWithRetry opens a TCP connection, persistently retrying transient
-// failures across a time budget.
+// dialWithRetry opens a TCP connection, using one long-lived connect so the OS
+// can wake a deep-sleeping Wi-Fi printer — faithfully reproducing the old Node
+// host's behavior.
 //
-// Wi-Fi network printers deep-sleep their radio to save power. The first
-// connect to a sleeping printer fails *instantly* with EHOSTUNREACH
-// ("no route to host") — the OS returns that error the moment ARP fails to
-// resolve the asleep device, WITHOUT waiting out the dial timeout. So a couple
-// of quick retries (the old 3-attempt/<1s loop) all fire before the radio has
-// any chance to wake, and the user sees a spurious failure.
+// Wi-Fi network printers deep-sleep their radio to save power; the ARP entry
+// then expires, so reaching them again first requires a fresh ARP resolution.
+// The repeated ARP *broadcasts* the OS emits while a connect is pending are what
+// actually wake the printer (the same way an ICMP ping does).
 //
-// The old Node host never hit this: its timeout-less socket.connect() leaned on
-// the OS's ~75s connect retry, whose sustained SYN/ARP retransmission woke the
-// printer within a few seconds. We emulate that here by re-issuing the connect
-// (each attempt re-sends ARP) at a steady cadence until retryBudget elapses —
-// kept just under the extension's 15s REQUEST_TIMEOUT_MS so the caller gets our
+// The old Node host worked because its timeout-less socket.connect() leaned on
+// the OS connect machinery, which keeps a single connect pending — broadcasting
+// ARP/SYN — for the whole attempt. The Go rewrite regressed this by looping
+// SHORT 5s dials with brief pauses: after the first miss macOS caches a
+// *negative* ARP entry, so each quick retry returns EHOSTUNREACH ("no route to
+// host") instantly WITHOUT re-broadcasting ARP — the printer never wakes.
+//
+// So we go back to one long connect: each attempt's timeout spans the entire
+// remaining budget (not a fixed 5s), keeping the connect pending so the OS
+// sustains ARP retransmission. We only re-issue if an attempt returns early
+// (e.g. the kernel gave up ARP and cached a negative entry) and there's still
+// budget left, pausing long enough to outlast that negative entry. The budget
+// is kept just under the extension's REQUEST_TIMEOUT_MS so the caller gets our
 // real error rather than a generic bridge timeout.
 func dialWithRetry(addr string, timeout time.Duration) (net.Conn, error) {
-	const retryBudget = 13 * time.Second   // stay under the extension's 15s request timeout
-	const retryPause = 400 * time.Millisecond
-	deadline := time.Now().Add(retryBudget)
+	const wakeBudget = 28 * time.Second   // stay under the extension's 30s request timeout
+	const retryPause = 1 * time.Second    // long enough to let a negative ARP entry expire
+	if timeout < wakeBudget {
+		timeout = wakeBudget
+	}
+	deadline := time.Now().Add(timeout)
 	var err error
 	for {
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			return nil, err
+		}
 		var c net.Conn
-		c, err = net.DialTimeout("tcp", addr, timeout)
+		// One long connect: the OS keeps it pending and re-broadcasts ARP for
+		// the full `remaining`, which is what wakes a sleeping printer.
+		c, err = net.DialTimeout("tcp", addr, remaining)
 		if err == nil {
 			return c, nil
 		}
-		// Stop on a hard error (e.g. connection refused) or once another
-		// attempt+pause would overrun the budget.
+		// Hard error (e.g. connection refused) → fail fast.
 		if !isTransientDialErr(err) || time.Now().Add(retryPause).After(deadline) {
 			return nil, err
 		}
