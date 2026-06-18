@@ -12,7 +12,12 @@
 ; Output: Output/localtcp-windows-uninstaller.exe
 
 #define MyAppName "Local TCP Bridge"
-#define MyAppVersion "2.0.0"
+; Version is injected by CI from manifest.json (single source of truth) via
+;   ISCC /DMyAppVersion=<v> uninstaller.iss
+; The fallback below only applies to an ad-hoc local compile without the flag.
+#ifndef MyAppVersion
+  #define MyAppVersion "0.0.0-dev"
+#endif
 #define MyAppPublisher "Algoramming Systems Ltd."
 #define MyAppURL "https://algoramming.com"
 #define HostName "com.algoramming.localtcp"

@@ -67,6 +67,11 @@ chmod 755 "$ROOT/$APP_DIR/localtcp"
 mkdir -p "$ROOT/Applications"
 cp -R "uninstaller-app/Uninstall Local TCP.app" "$ROOT/Applications/"
 chmod 755 "$ROOT/Applications/Uninstall Local TCP.app/Contents/MacOS/uninstall"
+# Stamp the app bundle's version from manifest (single source of truth). Only
+# the version <string> starts with a digit, so this targets it uniquely. The
+# app is re-signed below, so editing the plist here is safe.
+/usr/bin/sed -i '' "s|<string>[0-9][0-9.]*</string>|<string>$VERSION</string>|" \
+  "$ROOT/Applications/Uninstall Local TCP.app/Contents/Info.plist"
 
 # 1c. Code-sign the executables BEFORE packaging (required for notarization).
 #     Hardened runtime (--options runtime) + secure timestamp are mandatory.

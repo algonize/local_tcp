@@ -61,8 +61,10 @@ jobs:
         with: { name: go-binaries, path: host-go/dist }
       - name: Compile Inno Setup installer + uninstaller
         run: |
-          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installers\windows\installer.iss
-          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installers\windows\uninstaller.iss
+          $ver = (Get-Content -Raw manifest.json | ConvertFrom-Json).version
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          & $iscc "/DMyAppVersion=$ver" installers\windows\installer.iss
+          & $iscc "/DMyAppVersion=$ver" installers\windows\uninstaller.iss
         shell: pwsh
       # NOTE: add a code-signing step here once you have a certificate
       # (signtool sign /fd SHA256 ...) to avoid SmartScreen warnings.
