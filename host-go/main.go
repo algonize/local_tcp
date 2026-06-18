@@ -178,7 +178,27 @@ func wakePrinter(host string) {
 	default: // linux & others
 		args = []string{"-c", "3", "-W", "2", host} // -W: per-reply timeout (seconds)
 	}
-	_ = exec.Command("ping", args...).Run()
+	_ = exec.Command(pingPath(), args...).Run()
+}
+
+// pingPath resolves an ABSOLUTE path to the system ping binary. This is critical:
+// Chrome spawns native messaging hosts with a minimal PATH (typically without
+// /sbin), so a bare exec.Command("ping") fails with "executable file not found"
+// — the wake silently never fires and a sleeping printer stays unreachable. By
+// resolving the absolute path we don't depend on the inherited PATH at all.
+func pingPath() string {
+	if runtime.GOOS == "windows" {
+		if sysRoot := os.Getenv("SystemRoot"); sysRoot != "" {
+			return sysRoot + `\System32\PING.EXE`
+		}
+		return "ping"
+	}
+	for _, p := range []string{"/sbin/ping", "/bin/ping", "/usr/bin/ping", "/usr/sbin/ping"} {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	return "ping" // last resort — rely on PATH
 }
 
 // dialWithRetry opens a TCP connection, waking a deep-sleeping Wi-Fi printer
