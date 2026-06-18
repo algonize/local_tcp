@@ -16,6 +16,8 @@ import (
 	"io"
 	"net"
 	"os"
+	"os/exec"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -156,55 +158,70 @@ func dialTimeout(req *Request) time.Duration {
 	return 5 * time.Second
 }
 
-// dialWithRetry opens a TCP connection, using one long-lived connect so the OS
-// can wake a deep-sleeping Wi-Fi printer — faithfully reproducing the old Node
-// host's behavior.
+// wakePrinter best-effort sends a couple of ICMP echoes to coax a deep-sleeping
+// Wi-Fi printer's radio awake. This is the step that actually rouses it: a bare
+// TCP connect often won't — after the first miss macOS caches a *negative* ARP
+// entry and stops broadcasting ARP, so the printer never sees any traffic — but
+// an ICMP ping forces a fresh ARP resolution and the device wakes, exactly as it
+// does when you ping it by hand. Errors are ignored; it's only a nudge before we
+// (re)try the real TCP connect. Blocks up to ~2s when the printer is asleep.
+func wakePrinter(host string) {
+	// Send a small burst (3 echoes) rather than a single packet: a deeply-asleep
+	// radio may miss the first ARP/echo, and a 3-packet ping is exactly what was
+	// observed to reliably wake this class of printer by hand.
+	var args []string
+	switch runtime.GOOS {
+	case "windows":
+		args = []string{"-n", "3", "-w", "1000", host}
+	case "darwin":
+		args = []string{"-c", "3", "-t", "3", host} // -t: overall timeout (seconds)
+	default: // linux & others
+		args = []string{"-c", "3", "-W", "2", host} // -W: per-reply timeout (seconds)
+	}
+	_ = exec.Command("ping", args...).Run()
+}
+
+// dialWithRetry opens a TCP connection, waking a deep-sleeping Wi-Fi printer
+// first if necessary.
 //
 // Wi-Fi network printers deep-sleep their radio to save power; the ARP entry
-// then expires, so reaching them again first requires a fresh ARP resolution.
-// The repeated ARP *broadcasts* the OS emits while a connect is pending are what
-// actually wake the printer (the same way an ICMP ping does).
-//
-// The old Node host worked because its timeout-less socket.connect() leaned on
-// the OS connect machinery, which keeps a single connect pending — broadcasting
-// ARP/SYN — for the whole attempt. The Go rewrite regressed this by looping
-// SHORT 5s dials with brief pauses: after the first miss macOS caches a
-// *negative* ARP entry, so each quick retry returns EHOSTUNREACH ("no route to
-// host") instantly WITHOUT re-broadcasting ARP — the printer never wakes.
-//
-// So we go back to one long connect: each attempt's timeout spans the entire
-// remaining budget (not a fixed 5s), keeping the connect pending so the OS
-// sustains ARP retransmission. We only re-issue if an attempt returns early
-// (e.g. the kernel gave up ARP and cached a negative entry) and there's still
-// budget left, pausing long enough to outlast that negative entry. The budget
-// is kept just under the extension's REQUEST_TIMEOUT_MS so the caller gets our
-// real error rather than a generic bridge timeout.
-func dialWithRetry(addr string, timeout time.Duration) (net.Conn, error) {
-	const wakeBudget = 28 * time.Second   // stay under the extension's 30s request timeout
-	const retryPause = 1 * time.Second    // long enough to let a negative ARP entry expire
-	if timeout < wakeBudget {
-		timeout = wakeBudget
+// expires, so the first connect returns EHOSTUNREACH ("no route to host")
+// *instantly* and — crucially — repeated TCP connects do NOT wake the device
+// (macOS caches a negative ARP entry and stops broadcasting). The old Node host
+// appeared to work via its long timeout-less connect, but for radios this deep
+// only an ICMP ping reliably wakes them. So: try once (fast path for an awake
+// printer), and on a transient miss, ping-to-wake then retry the connect, until
+// the wake budget — kept under the extension's REQUEST_TIMEOUT_MS — runs out.
+func dialWithRetry(host, addr string, timeout time.Duration) (net.Conn, error) {
+	const wakeBudget = 28 * time.Second // stay under the extension's 30s request timeout
+	if timeout <= 0 {
+		timeout = 5 * time.Second
 	}
-	deadline := time.Now().Add(timeout)
-	var err error
-	for {
-		remaining := time.Until(deadline)
-		if remaining <= 0 {
-			return nil, err
-		}
-		var c net.Conn
-		// One long connect: the OS keeps it pending and re-broadcasts ARP for
-		// the full `remaining`, which is what wakes a sleeping printer.
-		c, err = net.DialTimeout("tcp", addr, remaining)
+	deadline := time.Now().Add(wakeBudget)
+
+	// Fast path: an awake printer connects immediately.
+	c, err := net.DialTimeout("tcp", addr, timeout)
+	if err == nil {
+		return c, nil
+	}
+	if !isTransientDialErr(err) {
+		return nil, err // hard error (e.g. connection refused) — fail fast
+	}
+
+	// Slow path: printer is likely asleep. Ping to wake its radio, then retry
+	// the connect; each ping forces a fresh ARP so the device keeps getting
+	// nudged until it answers or we exhaust the budget.
+	for time.Now().Before(deadline) {
+		wakePrinter(host)
+		c, err = net.DialTimeout("tcp", addr, timeout)
 		if err == nil {
 			return c, nil
 		}
-		// Hard error (e.g. connection refused) → fail fast.
-		if !isTransientDialErr(err) || time.Now().Add(retryPause).After(deadline) {
+		if !isTransientDialErr(err) {
 			return nil, err
 		}
-		time.Sleep(retryPause)
 	}
+	return nil, err
 }
 
 // isTransientDialErr reports whether a dial error is the kind that typically
@@ -241,7 +258,7 @@ func handle(req *Request) {
 		defer lock.Unlock()
 
 		addr := fmt.Sprintf("%s:%d", req.Host, req.Port)
-		c, err := dialWithRetry(addr, dialTimeout(req))
+		c, err := dialWithRetry(req.Host, addr, dialTimeout(req))
 		if err != nil {
 			sendMessage(Response{ReqID: req.ReqID, Success: false, Error: "Socket error: " + err.Error(), ConnectionID: id})
 			return
@@ -264,7 +281,7 @@ func handle(req *Request) {
 		c := getConn(id)
 		if c == nil {
 			addr := fmt.Sprintf("%s:%d", req.Host, req.Port)
-			nc, err := dialWithRetry(addr, dialTimeout(req))
+			nc, err := dialWithRetry(req.Host, addr, dialTimeout(req))
 			if err != nil {
 				sendMessage(Response{ReqID: req.ReqID, Success: false, Error: "Socket connect failed: " + err.Error()})
 				return
