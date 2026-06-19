@@ -8,8 +8,8 @@ Local TCP is a Native Messaging Bridge that allows web applications to communica
 
 ## 🚀 Key Features
 
-- **One-Click Setup**: Native installers for Mac (.pkg), Windows (.exe), and Linux (.run). **No terminal. No Node.js. No dependencies.**
-- **Zero Dependencies**: The bridge is a single ~2.5MB static binary written in Go.
+- **One-Click Setup**: Native installers for Mac (.pkg), Windows (.exe), and Linux (.run). **No terminal needed** — the installer registers everything and auto-installs Node.js if it isn't already present.
+- **Lightweight Host**: The bridge is a small Node.js script. Running through the system `node` is also what keeps it working under macOS 15/26 Local Network Privacy, where an unsigned standalone binary gets silently blocked from the LAN.
 - **Enterprise Security**: Chrome Native Messaging sandbox + configurable **origin allowlist** — lock the bridge down to only your web apps.
 - **Binary Performance**: Handles raw ESC/POS byte streams with millisecond precision and safe concurrent request correlation.
 - **Platform Agnostic**: Works with Flutter Web, React, Vue, or any standard web framework. Registers with Chrome, Edge, Chromium, and Brave.
@@ -23,7 +23,7 @@ Local TCP operates as a multi-layer relay:
 1. **Web App**: Sends a `window.postMessage` to the Content Script.
 2. **Content Script**: Forwards the message to the Extension Background.
 3. **Background Script**: Checks the origin allowlist, then relays the request (tagged with a `reqId`) to the **Native Messaging Host**.
-4. **Native Host (Go binary)**: Opens a raw TCP socket to your hardware (e.g., port `9100`) and echoes the `reqId` back so concurrent jobs never cross wires.
+4. **Native Host (Node.js)**: Opens a raw TCP socket to your hardware (e.g., port `9100`) and echoes the `reqId` back so concurrent jobs never cross wires.
 
 ---
 
@@ -32,12 +32,12 @@ Local TCP operates as a multi-layer relay:
 1. Add the extension to Chrome.
 2. Open the extension popup → click **Download One-Click Installer** (it auto-detects your OS).
 3. Run the installer:
-   - 🍎 **macOS**: double-click `localtcp-mac-installer.pkg` → Continue → Install. (macOS prompts for your password — the bridge installs system-wide under `/Library`.)
+   - 🍎 **macOS**: double-click `localtcp-mac-installer.pkg` → Continue → Install. (macOS prompts for your password to complete setup; the host is installed for your user account.)
    - 🪟 **Windows**: double-click `localtcp-windows-installer.exe` → Install. (No admin rights needed — installs per-user.)
    - 🐧 **Linux**: `chmod +x localtcp-linux-installer.run && ./localtcp-linux-installer.run`
 4. **Restart Chrome** completely. The popup will show **Bridge Linked**. Done.
 
-That's the entire process — no shell scripts, no copying files, no Node.js.
+That's the entire process — no copying files by hand. (The installer needs Node.js; if it's missing it installs it for you via your system package manager.)
 
 ---
 
@@ -107,15 +107,17 @@ void printToHardware(String ip, int port, List<int> bytes) {
 
 ## 🛠️ Building From Source
 
-```bash
-# 1. Build the native host for all platforms (requires Go 1.21+)
-cd host-go && bash build.sh
+The native host is `host/index.js` (Node.js) — no build step. The cross-platform
+installer that registers it lives in `installers/rust/`:
 
-# 2. Build installers
-cd installers/linux && bash build_run.sh        # any OS
-cd installers/mac   && bash build_pkg.sh        # on macOS
-# Windows: compile installers/windows/installer.iss with Inno Setup 6
+```bash
+# Build the installer for the machine you're on (requires Rust)
+cd installers/rust && cargo build --release
+# → target/release/localtcp-installer        (run with: install | uninstall)
 ```
+
+For local development you can also register the host directly with the scripts
+in `host/` (e.g. `bash host/install_setup_mac.sh`) — no Rust needed.
 
 Or just **push to `main`** — the GitHub Actions workflow builds all three installers and publishes them to a GitHub Release automatically, tagged from the `version` field in `manifest.json`. To cut a new version, bump `manifest.json` `version` (e.g. `2.0.1`) and push; re-pushing the same version refreshes the existing release's files. The extension popup always downloads from `releases/latest`, so users get the newest build without any link changes.
 
@@ -127,7 +129,7 @@ Just as easy as installing. In the extension popup click **Uninstall Setup Kit**
 
 - 🪟 **Windows**: run `localtcp-windows-uninstaller.exe` (or Start Menu → **Uninstall Local TCP Bridge** / Settings → Apps → Uninstall).
 - 🍎 **macOS**: double-click `localtcp-mac-uninstaller.pkg` → Continue → Install → enter your password → Done.
-- 🐧 **Linux**: run `localtcp-linux-uninstaller.run` the same way you ran the installer, or `bash ~/.local/lib/localtcp/uninstall.sh`.
+- 🐧 **Linux**: run `localtcp-linux-uninstaller.run` the same way you ran the installer.
 
 
 
