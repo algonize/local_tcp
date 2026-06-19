@@ -201,7 +201,13 @@ func dialTimeout(req *Request) time.Duration {
 // an ICMP ping forces a fresh ARP resolution and the device wakes, exactly as it
 // does when you ping it by hand. Errors are ignored; it's only a nudge before we
 // (re)try the real TCP connect. Blocks up to ~2s when the printer is asleep.
-func wakePrinter(host string) {
+// wakePrinter returns true if the printer answered at least one ICMP echo. On
+// every platform `ping` exits 0 only when it received a reply, so the exit code
+// is a reliable "is this host reachable at L3 from here" signal — which is
+// exactly the fact that distinguishes a network/routing problem (0 replies: the
+// device is off, on another subnet/VLAN, or blocked by AP isolation) from a
+// port-level problem (replies OK but TCP 9100 still refused/filtered).
+func wakePrinter(host string) bool {
 	// Send a small burst (3 echoes) rather than a single packet: a deeply-asleep
 	// radio may miss the first ARP/echo, and a 3-packet ping is exactly what was
 	// observed to reliably wake this class of printer by hand.
@@ -214,7 +220,7 @@ func wakePrinter(host string) {
 	default: // linux & others
 		args = []string{"-c", "3", "-W", "2", host} // -W: per-reply timeout (seconds)
 	}
-	_ = exec.Command(pingPath(), args...).Run()
+	return exec.Command(pingPath(), args...).Run() == nil
 }
 
 // pingPath resolves an ABSOLUTE path to the system ping binary. This is critical:
@@ -282,22 +288,38 @@ func dialWithRetry(host, addr string, timeout time.Duration) (net.Conn, error) {
 	// Slow path: printer is likely asleep. Ping to wake its radio, then retry
 	// the connect; each ping forces a fresh ARP so the device keeps getting
 	// nudged until it answers or we exhaust the budget.
+	pingEverReplied := false
 	for attempt := 1; time.Now().Before(deadline); attempt++ {
 		wt := time.Now()
-		wakePrinter(host)
+		replied := wakePrinter(host)
+		pingEverReplied = pingEverReplied || replied
 		dt := time.Now()
 		c, err = net.DialTimeout("tcp", addr, timeout)
 		if err == nil {
-			logf("dial OK addr=%s via=wake-retry attempt=%d wake=%s dial=%s", addr, attempt, dt.Sub(wt), time.Since(dt))
+			logf("dial OK addr=%s via=wake-retry attempt=%d pingReplied=%v wake=%s dial=%s", addr, attempt, replied, dt.Sub(wt), time.Since(dt))
 			return c, nil
 		}
-		logf("dial MISS addr=%s via=wake-retry attempt=%d wake=%s dial=%s transient=%v err=%v", addr, attempt, dt.Sub(wt), time.Since(dt), isTransientDialErr(err), err)
+		logf("dial MISS addr=%s via=wake-retry attempt=%d pingReplied=%v wake=%s dial=%s transient=%v err=%v", addr, attempt, replied, dt.Sub(wt), time.Since(dt), isTransientDialErr(err), err)
 		if !isTransientDialErr(err) {
 			return nil, err
 		}
 	}
-	logf("dial GIVE-UP addr=%s totalElapsed=%s lastErr=%v", addr, time.Since(t0), err)
-	return nil, err
+	logf("dial GIVE-UP addr=%s totalElapsed=%s pingEverReplied=%v lastErr=%v", addr, time.Since(t0), pingEverReplied, err)
+
+	// Self-diagnosis: fold the ping result into the error so the message ALONE
+	// pinpoints the cause without the user having to run any commands.
+	if pingEverReplied {
+		return nil, fmt.Errorf("%w — but the printer DID answer ping, so it is reachable; TCP port %s is blocked/refused (printer busy, firewall, or wrong port)", err, portOf(addr))
+	}
+	return nil, fmt.Errorf("%w — and the printer did NOT answer ping either, so this machine cannot reach %s at all (printer off/asleep-unwakeable, on a different subnet/VLAN, or blocked by Wi-Fi AP/client isolation). This is a NETWORK/router issue, not the bridge", err, host)
+}
+
+// portOf extracts the "port" tail of a "host:port" string for error messages.
+func portOf(addr string) string {
+	if i := strings.LastIndex(addr, ":"); i >= 0 {
+		return addr[i+1:]
+	}
+	return addr
 }
 
 // isTransientDialErr reports whether a dial error is the kind that typically
