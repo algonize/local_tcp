@@ -1,9 +1,18 @@
 # Local TCP Bridge — Release Pipeline
-# Every push to `main` builds all installers and publishes/updates a GitHub
-# Release tagged from the `version` field in manifest.json (e.g. v2.0.0). The
-# extension popup downloads from /releases/latest/download/<asset>, so users
-# always get the newest build automatically — bump manifest.json `version` to
-# cut a new release; re-pushing the same version just refreshes the assets.
+# Builds the Rust installer (which installs the Node.js native-messaging host)
+# on each OS's native runner, wraps it into the one-click assets the extension
+# popup downloads, and publishes/updates a GitHub Release tagged from the
+# `version` field in manifest.json.
+#
+# Assets produced (names MUST match popup.js INSTALLER_ASSETS/UNINSTALLER_ASSETS):
+#   localtcp-windows-installer.exe   localtcp-windows-uninstaller.exe
+#   localtcp-mac-installer.pkg       localtcp-mac-uninstaller.pkg
+#   localtcp-linux-installer.run     localtcp-linux-uninstaller.run
+#
+# The same compiled binary is shipped as both installer and uninstaller; it
+# picks its mode from an explicit arg or, failing that, from its own filename
+# (".../uninstaller" -> uninstall). Code-signing/notarization steps are guarded
+# on secrets being present, so the pipeline stays green before certs are set up.
 
 name: Build Release Installers
 
@@ -15,126 +24,182 @@ on:
 permissions:
   contents: write
 
+env:
+  RUST_DIR: installers/rust
+
 jobs:
-  binaries:
-    name: Build Go binaries
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with: { go-version: '1.23' }
-      - name: Cross-compile all targets
-        run: |
-          cd host-go
-          bash build.sh
-      - uses: actions/upload-artifact@v4
-        with:
-          name: go-binaries
-          path: host-go/dist/
-
-  linux-installer:
-    name: Linux .run installer
-    needs: binaries
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with: { name: go-binaries, path: host-go/dist }
-      - name: Build self-extracting installer
-        run: |
-          cd installers/linux
-          bash build_run.sh
-      - uses: actions/upload-artifact@v4
-        with:
-          name: linux-installer
-          path: |
-            installers/linux/dist/localtcp-linux-installer.run
-            installers/linux/dist/localtcp-linux-uninstaller.run
-
-  windows-installer:
-    name: Windows .exe installer
-    needs: binaries
+  # ─── Windows: bare signed .exe (installer + uninstaller) ─────────────────────
+  windows:
+    name: Windows installer
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with: { name: go-binaries, path: host-go/dist }
-      - name: Compile Inno Setup installer + uninstaller
-        run: |
-          $ver = (Get-Content -Raw manifest.json | ConvertFrom-Json).version
-          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
-          & $iscc "/DMyAppVersion=$ver" installers\windows\installer.iss
-          & $iscc "/DMyAppVersion=$ver" installers\windows\uninstaller.iss
+      - name: Build Rust installer
+        run: cargo build --release --manifest-path ${{ env.RUST_DIR }}/Cargo.toml
+      - name: Assemble assets
         shell: pwsh
-      # NOTE: add a code-signing step here once you have a certificate
-      # (signtool sign /fd SHA256 ...) to avoid SmartScreen warnings.
+        run: |
+          $bin = "${{ env.RUST_DIR }}/target/release/localtcp-installer.exe"
+          New-Item -ItemType Directory -Force -Path out | Out-Null
+          Copy-Item $bin out/localtcp-windows-installer.exe -Force
+          Copy-Item $bin out/localtcp-windows-uninstaller.exe -Force
+      - name: Code-sign (optional — needs WIN_CERT_BASE64 / WIN_CERT_PASSWORD)
+        shell: pwsh
+        env:
+          WIN_CERT_BASE64: ${{ secrets.WIN_CERT_BASE64 }}
+          WIN_CERT_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
+        run: |
+          if ([string]::IsNullOrEmpty($env:WIN_CERT_BASE64)) {
+            Write-Host "::warning::No Windows signing cert configured — shipping unsigned (SmartScreen will warn)."
+          } else {
+            [IO.File]::WriteAllBytes("$env:RUNNER_TEMP\cert.pfx", [Convert]::FromBase64String($env:WIN_CERT_BASE64))
+            $st = "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" | Get-ChildItem | Select-Object -Last 1
+            foreach ($f in @("out/localtcp-windows-installer.exe","out/localtcp-windows-uninstaller.exe")) {
+              & $st sign /f "$env:RUNNER_TEMP\cert.pfx" /p $env:WIN_CERT_PASSWORD /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $f
+            }
+          }
       - uses: actions/upload-artifact@v4
         with:
-          name: windows-installer
-          path: |
-            installers/windows/Output/localtcp-windows-installer.exe
-            installers/windows/Output/localtcp-windows-uninstaller.exe
+          name: windows
+          path: out/*.exe
 
-  mac-installer:
-    name: macOS .pkg installer
-    needs: binaries
+  # ─── Linux: self-extracting .run via makeself ────────────────────────────────
+  linux:
+    name: Linux installer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Rust installer
+        run: cargo build --release --manifest-path ${{ env.RUST_DIR }}/Cargo.toml
+      - name: Package self-extracting .run
+        run: |
+          set -euo pipefail
+          sudo apt-get update && sudo apt-get install -y makeself
+          mkdir -p payload out
+          cp ${RUST_DIR}/target/release/localtcp-installer payload/
+          chmod +x payload/localtcp-installer
+          makeself --nox11 payload out/localtcp-linux-installer.run \
+            "Local TCP Installer" ./localtcp-installer install
+          makeself --nox11 payload out/localtcp-linux-uninstaller.run \
+            "Local TCP Uninstaller" ./localtcp-installer uninstall
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: out/*.run
+
+  # ─── macOS: signed/notarized .pkg (installer + uninstaller) ──────────────────
+  macos:
+    name: macOS installer
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with: { name: go-binaries, path: host-go/dist }
-      - name: Import Developer ID certificates
-        env:
-          MAC_APP_CERT_BASE64: ${{ secrets.MAC_APP_CERT_BASE64 }}
-          MAC_INSTALLER_CERT_BASE64: ${{ secrets.MAC_INSTALLER_CERT_BASE64 }}
-          MAC_CERT_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+      - name: Build Rust installer (universal)
         run: |
           set -euo pipefail
-          KEYCHAIN="$RUNNER_TEMP/build.keychain-db"
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
-          # Make our keychain the default + searchable so signing tools find the certs
-          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | sed s/\"//g)
-          security default-keychain -s "$KEYCHAIN"
-
-          echo "$MAC_APP_CERT_BASE64"       | base64 --decode > "$RUNNER_TEMP/app.p12"
-          echo "$MAC_INSTALLER_CERT_BASE64" | base64 --decode > "$RUNNER_TEMP/installer.p12"
-          security import "$RUNNER_TEMP/app.p12"       -k "$KEYCHAIN" -P "$MAC_CERT_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productsign
-          security import "$RUNNER_TEMP/installer.p12" -k "$KEYCHAIN" -P "$MAC_CERT_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productsign
-          # Let codesign/productsign use the keys without an interactive prompt
-          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
-          rm -f "$RUNNER_TEMP/app.p12" "$RUNNER_TEMP/installer.p12"
-          echo "Imported identities:"; security find-identity -v | grep "Developer ID" || true
-      - name: Build, sign & notarize .pkg (installer + uninstaller)
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+          cargo build --release --target aarch64-apple-darwin --manifest-path ${RUST_DIR}/Cargo.toml
+          cargo build --release --target x86_64-apple-darwin  --manifest-path ${RUST_DIR}/Cargo.toml
+          mkdir -p payload
+          lipo -create -output payload/localtcp-installer \
+            ${RUST_DIR}/target/aarch64-apple-darwin/release/localtcp-installer \
+            ${RUST_DIR}/target/x86_64-apple-darwin/release/localtcp-installer
+          chmod +x payload/localtcp-installer
+      - name: Optional codesign of the binary
         env:
+          MAC_APP_CERT_BASE64: ${{ secrets.MAC_APP_CERT_BASE64 }}
+          MAC_CERT_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${MAC_APP_CERT_BASE64:-}" ]; then
+            echo "::warning::No macOS signing cert configured — building unsigned .pkg."
+            exit 0
+          fi
+          KC="$RUNNER_TEMP/build.keychain-db"
+          security create-keychain -p actions "$KC"
+          security set-keychain-settings -lut 21600 "$KC"
+          security unlock-keychain -p actions "$KC"
+          security list-keychains -d user -s "$KC" $(security list-keychains -d user | sed s/\"//g)
+          echo "$MAC_APP_CERT_BASE64" | base64 --decode > "$RUNNER_TEMP/app.p12"
+          security import "$RUNNER_TEMP/app.p12" -k "$KC" -P "$MAC_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k actions "$KC"
+          IDENT=$(security find-identity -v "$KC" | awk '/Developer ID Application/{print $2; exit}')
+          codesign --force --options runtime --timestamp -s "$IDENT" payload/localtcp-installer
+          rm -f "$RUNNER_TEMP/app.p12"
+      - name: Build .pkg installer + uninstaller
+        run: |
+          set -euo pipefail
+          VER=$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' manifest.json | head -1)
+          mkdir -p out scripts-install scripts-uninstall
+
+          cat > scripts-install/postinstall <<'EOF'
+          #!/bin/bash
+          # Run the per-user install as the logged-in console user (not root).
+          U=$(stat -f%Su /dev/console)
+          H=$(dscl . -read /Users/"$U" NFSHomeDirectory 2>/dev/null | awk '{print $2}')
+          /usr/bin/sudo -u "$U" HOME="$H" /usr/local/lib/localtcp/localtcp-installer install || true
+          exit 0
+          EOF
+
+          cat > scripts-uninstall/postinstall <<'EOF'
+          #!/bin/bash
+          U=$(stat -f%Su /dev/console)
+          H=$(dscl . -read /Users/"$U" NFSHomeDirectory 2>/dev/null | awk '{print $2}')
+          /usr/bin/sudo -u "$U" HOME="$H" /usr/local/lib/localtcp/localtcp-installer uninstall || true
+          rm -rf /usr/local/lib/localtcp
+          exit 0
+          EOF
+
+          chmod +x scripts-install/postinstall scripts-uninstall/postinstall
+
+          pkgbuild --root payload --install-location /usr/local/lib/localtcp \
+            --scripts scripts-install --identifier com.algoramming.localtcp.installer \
+            --version "$VER" out/localtcp-mac-installer.pkg
+          pkgbuild --root payload --install-location /usr/local/lib/localtcp \
+            --scripts scripts-uninstall --identifier com.algoramming.localtcp.uninstaller \
+            --version "$VER" out/localtcp-mac-uninstaller.pkg
+      - name: Optional productsign + notarize
+        env:
+          MAC_INSTALLER_CERT_BASE64: ${{ secrets.MAC_INSTALLER_CERT_BASE64 }}
+          MAC_CERT_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
           AC_APPLE_ID: ${{ secrets.AC_APPLE_ID }}
           AC_TEAM_ID: ${{ secrets.AC_TEAM_ID }}
           AC_APP_PASSWORD: ${{ secrets.AC_APP_PASSWORD }}
         run: |
-          cd installers/mac
-          bash build_pkg.sh
-          bash build_uninstall_pkg.sh
-      - name: Verify notarization
-        run: |
-          spctl --assess --type install -vv installers/mac/dist/localtcp-mac-installer.pkg
-          spctl --assess --type install -vv installers/mac/dist/localtcp-mac-uninstaller.pkg
+          set -euo pipefail
+          if [ -z "${MAC_INSTALLER_CERT_BASE64:-}" ]; then
+            echo "::warning::No installer cert — .pkg is unsigned (Gatekeeper will block; right-click → Open as a workaround)."
+            exit 0
+          fi
+          KC="$RUNNER_TEMP/build.keychain-db"
+          echo "$MAC_INSTALLER_CERT_BASE64" | base64 --decode > "$RUNNER_TEMP/inst.p12"
+          security import "$RUNNER_TEMP/inst.p12" -k "$KC" -P "$MAC_CERT_PASSWORD" -T /usr/bin/productsign
+          security set-key-partition-list -S apple-tool:,apple: -s -k actions "$KC"
+          IDENT=$(security find-identity -v "$KC" | awk '/Developer ID Installer/{print $2; exit}')
+          for p in installer uninstaller; do
+            productsign --sign "$IDENT" out/localtcp-mac-$p.pkg out/signed-$p.pkg
+            mv out/signed-$p.pkg out/localtcp-mac-$p.pkg
+          done
+          if [ -n "${AC_APPLE_ID:-}" ]; then
+            for p in installer uninstaller; do
+              xcrun notarytool submit out/localtcp-mac-$p.pkg \
+                --apple-id "$AC_APPLE_ID" --team-id "$AC_TEAM_ID" --password "$AC_APP_PASSWORD" --wait
+              xcrun stapler staple out/localtcp-mac-$p.pkg
+            done
+          fi
+          rm -f "$RUNNER_TEMP/inst.p12"
       - uses: actions/upload-artifact@v4
         with:
-          name: mac-installer
-          path: |
-            installers/mac/dist/localtcp-mac-installer.pkg
-            installers/mac/dist/localtcp-mac-uninstaller.pkg
+          name: macos
+          path: out/*.pkg
 
+  # ─── Publish the GitHub Release ──────────────────────────────────────────────
   release:
     name: Publish GitHub Release
-    needs: [linux-installer, windows-installer, mac-installer]
+    needs: [windows, linux, macos]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Read version from manifest.json
-        id: ver
+      - id: ver
         run: echo "version=$(jq -r .version manifest.json)" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@v4
         with: { path: assets, merge-multiple: true }
@@ -143,10 +208,10 @@ jobs:
           tag_name: v${{ steps.ver.outputs.version }}
           name: Local TCP v${{ steps.ver.outputs.version }}
           files: |
-            assets/localtcp-linux-installer.run
-            assets/localtcp-linux-uninstaller.run
             assets/localtcp-windows-installer.exe
             assets/localtcp-windows-uninstaller.exe
+            assets/localtcp-linux-installer.run
+            assets/localtcp-linux-uninstaller.run
             assets/localtcp-mac-installer.pkg
             assets/localtcp-mac-uninstaller.pkg
           generate_release_notes: true

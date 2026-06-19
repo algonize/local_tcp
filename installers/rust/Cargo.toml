@@ -1,0 +1,18 @@
+[package]
+name = "localtcp-installer"
+version = "2.1.0"
+edition = "2021"
+description = "Cross-platform installer for the Local TCP native messaging host (Node.js)"
+
+[[bin]]
+name = "localtcp-installer"
+path = "src/main.rs"
+
+# Small, dependency-free, statically-linkable installer binary. No external
+# crates on purpose: it builds offline and is trivial to code-sign/notarize.
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true
+panic = "abort"
+codegen-units = 1
