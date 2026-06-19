@@ -14,9 +14,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -27,6 +29,40 @@ import (
 //   -ldflags "-X main.version=<v>"
 // The fallback below is only used for ad-hoc `go run` / `go build` without flags.
 var version = "0.0.0-dev"
+
+// ─── Diagnostic Logging ──────────────────────────────────────────────────────
+//
+// The host speaks only over Chrome's native-messaging pipe, so when it hangs in
+// net.DialTimeout it is otherwise a black box. This appends a timestamped trace
+// to a log file so a single failing print tells us EXACTLY what happened: which
+// address was dialed, whether the dial returned instantly or hung the full
+// timeout, and whether ping-wake fired. The path is reported in PING responses
+// (see logPath) so the user can find it. Logging never affects the protocol;
+// any file error is silently ignored and the host runs normally.
+var (
+	dbg     *log.Logger
+	dbgPath string
+)
+
+func initLog() {
+	// os.TempDir() is always writable and does NOT depend on the inherited PATH
+	// (Chrome spawns hosts with a minimal environment), so the log always lands.
+	dbgPath = filepath.Join(os.TempDir(), "localtcp-host.log")
+	f, err := os.OpenFile(dbgPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	if err != nil {
+		return // logging is best-effort; never block the host on it
+	}
+	dbg = log.New(f, "", log.LstdFlags|log.Lmicroseconds)
+	dbg.Printf("──── host start  version=%s  pid=%d  os=%s ────", version, os.Getpid(), runtime.GOOS)
+}
+
+// logf is a safe no-op if the log file could not be opened. log.Logger is
+// goroutine-safe, so concurrent request handlers can call this freely.
+func logf(format string, a ...interface{}) {
+	if dbg != nil {
+		dbg.Printf(format, a...)
+	}
+}
 
 // ─── Message Types ───────────────────────────────────────────────────────────
 
@@ -213,17 +249,32 @@ func pingPath() string {
 // printer), and on a transient miss, ping-to-wake then retry the connect, until
 // the wake budget — kept under the extension's REQUEST_TIMEOUT_MS — runs out.
 func dialWithRetry(host, addr string, timeout time.Duration) (net.Conn, error) {
-	const wakeBudget = 28 * time.Second // stay under the extension's 30s request timeout
+	const wakeBudget = 28 * time.Second // total budget — stays under the extension's 30s request timeout
+	const maxAttemptTimeout = 4 * time.Second // cap EACH dial attempt so the host always returns a real error before the extension's 30s fires
 	if timeout <= 0 {
 		timeout = 5 * time.Second
 	}
+	// CRITICAL: never let a single dial attempt consume the whole request window.
+	// If the caller passes timeoutMs=30000, an unreachable printer would block the
+	// first dial for the full 30s — exactly the extension's timeout — so the
+	// extension reports the opaque "Bridge timeout: no response" while the host is
+	// still stuck in that first dial and never sends its real "no route to host"
+	// error. Capping per-attempt guarantees the host answers first, with a useful
+	// message, and still gets multiple wake+retry passes within the budget.
+	if timeout > maxAttemptTimeout {
+		timeout = maxAttemptTimeout
+	}
 	deadline := time.Now().Add(wakeBudget)
+	logf("dial START addr=%s perAttemptTimeout=%s wakeBudget=%s", addr, timeout, wakeBudget)
 
 	// Fast path: an awake printer connects immediately.
+	t0 := time.Now()
 	c, err := net.DialTimeout("tcp", addr, timeout)
 	if err == nil {
+		logf("dial OK addr=%s via=fast-path took=%s", addr, time.Since(t0))
 		return c, nil
 	}
+	logf("dial MISS addr=%s via=fast-path took=%s transient=%v err=%v", addr, time.Since(t0), isTransientDialErr(err), err)
 	if !isTransientDialErr(err) {
 		return nil, err // hard error (e.g. connection refused) — fail fast
 	}
@@ -231,16 +282,21 @@ func dialWithRetry(host, addr string, timeout time.Duration) (net.Conn, error) {
 	// Slow path: printer is likely asleep. Ping to wake its radio, then retry
 	// the connect; each ping forces a fresh ARP so the device keeps getting
 	// nudged until it answers or we exhaust the budget.
-	for time.Now().Before(deadline) {
+	for attempt := 1; time.Now().Before(deadline); attempt++ {
+		wt := time.Now()
 		wakePrinter(host)
+		dt := time.Now()
 		c, err = net.DialTimeout("tcp", addr, timeout)
 		if err == nil {
+			logf("dial OK addr=%s via=wake-retry attempt=%d wake=%s dial=%s", addr, attempt, dt.Sub(wt), time.Since(dt))
 			return c, nil
 		}
+		logf("dial MISS addr=%s via=wake-retry attempt=%d wake=%s dial=%s transient=%v err=%v", addr, attempt, dt.Sub(wt), time.Since(dt), isTransientDialErr(err), err)
 		if !isTransientDialErr(err) {
 			return nil, err
 		}
 	}
+	logf("dial GIVE-UP addr=%s totalElapsed=%s lastErr=%v", addr, time.Since(t0), err)
 	return nil, err
 }
 
@@ -266,10 +322,13 @@ func handle(req *Request) {
 		}
 	}()
 
+	logf("REQ action=%s host=%s port=%d connId=%s reqId=%s", req.Action, req.Host, req.Port, req.ConnectionID, req.ReqID)
+
 	switch req.Action {
 
 	case "PING":
-		sendMessage(Response{ReqID: req.ReqID, Success: true, Message: "Pong", Version: version})
+		// Report the diagnostic log path so the user can find the trace file.
+		sendMessage(Response{ReqID: req.ReqID, Success: true, Message: "Pong; log=" + dbgPath, Version: version})
 
 	case "CONNECT":
 		id := connID(req)
@@ -365,8 +424,10 @@ func handle(req *Request) {
 // ─── Main Loop ───────────────────────────────────────────────────────────────
 
 func main() {
+	initLog()
 	defer func() {
 		if r := recover(); r != nil {
+			logf("FATAL host panic: %v", r)
 			sendMessage(Response{Success: false, Error: fmt.Sprintf("Host panic: %v", r)})
 		}
 	}()
